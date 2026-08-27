@@ -2,16 +2,71 @@ import React, { useEffect, useRef } from 'react';
 import * as Cesium from 'cesium';
 import type { Event } from '../types';
 
+interface HeatmapCell {
+  minLon: number;
+  minLat: number;
+  maxLon: number;
+  maxLat: number;
+  intensity: number;
+  count: number;
+}
+
+const aggregateThreatGrid = (events: Event[], cellSize = 2): Map<string, HeatmapCell> => {
+  const grid = new Map<string, HeatmapCell>();
+
+  events.forEach((evt) => {
+    if (!evt.location || !Array.isArray(evt.location.coordinates) || evt.location.coordinates.length < 2) return;
+
+    let lon = Number(evt.location.coordinates[0]);
+    let lat = Number(evt.location.coordinates[1]);
+
+    if (isNaN(lon) || isNaN(lat)) return;
+    if (lat < -90 || lat > 90) return;
+
+    // Normalize lon to [-180, 180]
+    lon = ((lon + 180) % 360 + 360) % 360 - 180;
+
+    const cellMinLon = Math.floor(lon / cellSize) * cellSize;
+    let cellMinLat = Math.floor(lat / cellSize) * cellSize;
+
+    // Fix: Prevent maxLat from exceeding 90, which crashes Cesium.Rectangle
+    if (cellMinLat >= 90) {
+      cellMinLat = 90 - cellSize;
+    }
+
+    const key = `${cellMinLon},${cellMinLat}`;
+
+    const existing = grid.get(key);
+    if (existing) {
+      existing.intensity += evt.threat_score;
+      existing.count += 1;
+    } else {
+      grid.set(key, {
+        minLon: cellMinLon,
+        minLat: cellMinLat,
+        maxLon: cellMinLon + cellSize,
+        maxLat: cellMinLat + cellSize,
+        intensity: evt.threat_score,
+        count: 1,
+      });
+    }
+  });
+
+  return grid;
+};
+
 interface GlobeViewerProps {
   events: Event[];
   selectedEvent: Event | null;
   onSelectEvent: (event: Event) => void;
+  showHeatmap?: boolean;
 }
 
 export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
   events,
   selectedEvent,
   onSelectEvent,
+  showHeatmap = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -207,6 +262,69 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
       viewer.scene.requestRender();
     }
   }, [events]);
+
+  const heatmapEntitiesRef = useRef<Cesium.Entity[]>([]);
+
+  // Render Heatmap Layer
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    // 1. Clear previous heatmap entities
+    heatmapEntitiesRef.current.forEach(entity => {
+      viewer.entities.remove(entity);
+    });
+    heatmapEntitiesRef.current = [];
+
+    // 2. If disabled, stop here and render
+    if (!showHeatmap) {
+      viewer.scene.requestRender();
+      return;
+    }
+
+    // 3. Aggregate events into grid
+    const grid = aggregateThreatGrid(events, 2);
+
+    // 4. Find max intensity for normalization
+    let maxIntensity = 0;
+    grid.forEach(cell => {
+      if (cell.intensity > maxIntensity) {
+        maxIntensity = cell.intensity;
+      }
+    });
+
+    if (maxIntensity === 0) {
+      viewer.scene.requestRender();
+      return;
+    }
+
+    // 5. Render normalized cells
+    grid.forEach(cell => {
+      const normalized = cell.intensity / maxIntensity;
+
+      let color: Cesium.Color;
+      if (normalized < 0.33) {
+        color = Cesium.Color.fromCssColorString('#EAB308').withAlpha(0.2 + (normalized * 0.5)); // Yellow
+      } else if (normalized < 0.66) {
+        color = Cesium.Color.fromCssColorString('#F97316').withAlpha(0.3 + (normalized * 0.5)); // Orange
+      } else {
+        color = Cesium.Color.fromCssColorString('#DC2626').withAlpha(0.4 + (normalized * 0.5)); // Red
+      }
+
+      const rect = viewer.entities.add({
+        rectangle: {
+          coordinates: Cesium.Rectangle.fromDegrees(cell.minLon, cell.minLat, cell.maxLon, cell.maxLat),
+          material: new Cesium.ColorMaterialProperty(color),
+          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          outline: false,
+        }
+      });
+
+      heatmapEntitiesRef.current.push(rect);
+    });
+
+    viewer.scene.requestRender();
+  }, [events, showHeatmap]);
 
   // Fly to selected event when changed from sidebar list or external state
   useEffect(() => {

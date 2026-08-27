@@ -10,6 +10,8 @@ interface FilterPanelProps {
   selectedEvent: Event | null;
   onSelectEvent: (event: Event) => void;
   globalMetrics: EventGlobalMetrics;
+  showHeatmap: boolean;
+  onHeatmapToggle: () => void;
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -19,6 +21,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   selectedEvent,
   onSelectEvent,
   globalMetrics,
+  showHeatmap,
+  onHeatmapToggle,
 }) => {
   const [availableCountries, setAvailableCountries] = useState<string[]>([]);
   const [isLoadingCountries, setIsLoadingCountries] = useState(false);
@@ -240,22 +244,49 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           )}
         </div>
 
-        {/* Export Controls */}
-        <div className="pt-2 flex gap-2">
-          <button
-            onClick={() => handleExport('pdf')}
-            disabled={isExporting}
-            className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 border border-slate-700 rounded text-xs text-slate-200 font-mono transition-colors"
-          >
-            {isExporting ? 'Exporting...' : 'Export PDF'}
-          </button>
-          <button
-            onClick={() => handleExport('stix')}
-            disabled={isExporting}
-            className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 border border-slate-700 rounded text-xs text-slate-200 font-mono transition-colors"
-          >
-            {isExporting ? 'Exporting...' : 'Export STIX'}
-          </button>
+        {/* Export Controls & View Mode */}
+        <div className="pt-2 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono font-semibold text-slate-300">View Mode</label>
+            <button
+              onClick={onHeatmapToggle}
+              className={`px-3 py-1 rounded text-[10px] font-mono font-bold uppercase transition-colors ${
+                showHeatmap
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_10px_rgba(217,119,6,0.4)]'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-400'
+              }`}
+            >
+              {showHeatmap ? 'Heatmap ON' : 'Heatmap OFF'}
+            </button>
+          </div>
+          {showHeatmap && (
+            <div className="flex flex-col gap-1 mt-1 p-2 bg-slate-900 rounded border border-slate-800/80">
+              <span className="text-[10px] font-mono text-slate-400 text-center">Threat Density</span>
+              <div className="h-1.5 w-full bg-gradient-to-r from-yellow-500/20 via-orange-500/60 to-red-600 rounded"></div>
+              <div className="flex justify-between text-[9px] font-mono text-slate-500">
+                <span>Low</span>
+                <span>Medium</span>
+                <span>High</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => handleExport('pdf')}
+              disabled={isExporting}
+              className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 border border-slate-700 rounded text-xs text-slate-200 font-mono transition-colors"
+            >
+              {isExporting ? 'Exporting...' : 'Export PDF'}
+            </button>
+            <button
+              onClick={() => handleExport('stix')}
+              disabled={isExporting}
+              className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 border border-slate-700 rounded text-xs text-slate-200 font-mono transition-colors"
+            >
+              {isExporting ? 'Exporting...' : 'Export STIX'}
+            </button>
+          </div>
         </div>
       </div>
 
