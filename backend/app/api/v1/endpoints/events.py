@@ -36,7 +36,7 @@ def parse_and_validate_bbox(bbox_str: Optional[str]) -> Optional[List[float]]:
 
 @router.get("", response_model=EventListResponse, summary="List & Filter Intelligence Events")
 async def list_events(
-    limit: int = Query(default=50, ge=1, le=200, description="Page limit (1-200)"),
+    limit: int = Query(default=50, ge=1, le=10000, description="Page limit (1-10000)"),
     skip: int = Query(default=0, ge=0, description="Page skip offset"),
     threat_level: Optional[str] = Query(default=None, description="Filter by threat level: Low, Medium, High"),
     min_threat_score: Optional[float] = Query(default=None, ge=0.0, le=100.0, description="Minimum threat score"),

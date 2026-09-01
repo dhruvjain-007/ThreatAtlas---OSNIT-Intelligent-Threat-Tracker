@@ -60,13 +60,19 @@ export const App: React.FC = () => {
       const healthy = await checkHealth();
       setIsOnline(healthy);
 
-      // Fetch normal dashboard events
+      // Fetch normal dashboard events — this determines connection status
       const res = await fetchEvents(filters);
       setEvents(res.items);
 
-      // Fetch a bounded large dataset for complete historical playback (Issue #18)
-      const playbackRes = await fetchEvents(filters, 10000);
-      setPlaybackEvents(playbackRes.items);
+      // Fetch full historical dataset for temporal playback separately.
+      // Failures here (e.g. empty DB) must NOT trigger the connection-lost banner.
+      try {
+        const playbackRes = await fetchEvents(filters, 10000);
+        setPlaybackEvents(playbackRes.items);
+      } catch {
+        // Playback fetch failed — degrade gracefully to the dashboard data
+        setPlaybackEvents(res.items);
+      }
     } catch (err: any) {
       console.error('Failed to load events:', err);
       setIsOnline(false);

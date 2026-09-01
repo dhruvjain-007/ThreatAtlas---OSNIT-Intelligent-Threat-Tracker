@@ -56,26 +56,34 @@ async def publish_event(event_data: Dict[str, Any], action: str = "created") -> 
 
 async def listen_redis_events() -> None:
     """Background task listening to Redis Pub/Sub channel and forwarding to WebSockets."""
-    try:
-        r = await get_redis_client()
-        if not r:
-            return
+    while True:
+        try:
+            # Dedicated pubsub client with no socket timeout for idle connections
+            pubsub_client = redis_async.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True,
+            )
+            pubsub = pubsub_client.pubsub()
+            await pubsub.subscribe(REDIS_CHANNEL)
+            logger.info("Subscribed to Redis Pub/Sub channel '%s'", REDIS_CHANNEL)
 
-        pubsub = r.pubsub()
-        await pubsub.subscribe(REDIS_CHANNEL)
-        logger.info("Subscribed to Redis Pub/Sub channel '%s'", REDIS_CHANNEL)
-
-        async for message in pubsub.listen():
-            if message and message.get("type") == "message":
-                data_str = message.get("data")
-                if data_str:
-                    try:
-                        data = json.loads(data_str)
-                        await ws_manager.broadcast_json(data)
-                    except Exception as parse_err:
-                        logger.warning("Error parsing Redis message payload: %s", parse_err)
-
-    except asyncio.CancelledError:
-        logger.info("Redis Pub/Sub listener task cancelled.")
-    except Exception as exc:
-        logger.warning("Redis Pub/Sub listener notice: %s. Continuing with in-memory broadcasting.", exc)
+            async for message in pubsub.listen():
+                if message and message.get("type") == "message":
+                    data_str = message.get("data")
+                    if data_str:
+                        try:
+                            data = json.loads(data_str)
+                            await ws_manager.broadcast_json(data)
+                        except Exception as parse_err:
+                            logger.warning("Error parsing Redis message payload: %s", parse_err)
+        
+        except asyncio.CancelledError:
+            logger.info("Redis Pub/Sub listener task cancelled.")
+            break
+        except Exception as exc:
+            logger.warning("Redis Pub/Sub listener error: %s. Retrying in 5 seconds...", exc)
+            await asyncio.sleep(5)
+        finally:
+            if 'pubsub_client' in locals():
+                await pubsub_client.close()
