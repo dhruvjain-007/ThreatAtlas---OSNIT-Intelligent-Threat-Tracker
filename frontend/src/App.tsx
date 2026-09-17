@@ -106,6 +106,17 @@ export const App: React.FC = () => {
         }
       });
 
+      setPlaybackEvents((prev) => {
+        const index = prev.findIndex((e) => e.id === incomingEvent.id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = incomingEvent;
+          return updated;
+        } else {
+          return [incomingEvent, ...prev];
+        }
+      });
+
       if (action === 'created' || action === 'updated' || action === 'merged') {
         loadMetrics();
       }
