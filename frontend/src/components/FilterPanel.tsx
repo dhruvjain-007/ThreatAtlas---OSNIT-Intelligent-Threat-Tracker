@@ -102,7 +102,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   };
 
   return (
-    <aside className="w-96 bg-slate-950/95 border-r border-slate-800/80 flex flex-col h-[calc(100vh-4rem)] z-20 backdrop-blur-md select-none">
+    <aside className="w-96 bg-slate-950/60 border-r border-slate-800/50 flex flex-col h-[calc(100vh-4rem)] z-20 backdrop-blur-xl select-none shadow-[4px_0_24px_rgba(0,0,0,0.3)]">
       {/* Search & Filter Header */}
       <div className="p-4 border-b border-slate-800/80 space-y-3">
         <div className="relative">
@@ -291,23 +291,23 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
       </div>
 
       {/* Quick Metrics Summary */}
-      <div className="grid grid-cols-3 gap-2 p-4 border-b border-slate-800/60 font-mono text-center">
-        <div className="bg-red-950/20 border border-red-900/30 p-2 rounded-md">
-          <div className="flex items-center justify-center gap-1 text-red-400 text-[10px] uppercase">
+      <div className="grid grid-cols-3 gap-2 p-4 border-b border-slate-800/50 font-mono text-center">
+        <div className="bg-red-950/20 border border-red-900/30 p-2 rounded-md backdrop-blur-sm shadow-inner shadow-red-900/10">
+          <div className="flex items-center justify-center gap-1 text-red-400 text-[10px] uppercase tracking-widest">
             <ShieldAlert className="w-3 h-3" /> High
           </div>
           <div className="text-base font-bold text-red-400">{highCount}</div>
         </div>
 
-        <div className="bg-amber-950/20 border border-amber-900/30 p-2 rounded-md">
-          <div className="flex items-center justify-center gap-1 text-amber-400 text-[10px] uppercase">
+        <div className="bg-amber-950/20 border border-amber-900/30 p-2 rounded-md backdrop-blur-sm shadow-inner shadow-amber-900/10">
+          <div className="flex items-center justify-center gap-1 text-amber-400 text-[10px] uppercase tracking-widest">
             <AlertTriangle className="w-3 h-3" /> Medium
           </div>
           <div className="text-base font-bold text-amber-400">{medCount}</div>
         </div>
 
-        <div className="bg-emerald-950/20 border border-emerald-900/30 p-2 rounded-md">
-          <div className="flex items-center justify-center gap-1 text-emerald-400 text-[10px] uppercase">
+        <div className="bg-emerald-950/20 border border-emerald-900/30 p-2 rounded-md backdrop-blur-sm shadow-inner shadow-emerald-900/10">
+          <div className="flex items-center justify-center gap-1 text-emerald-400 text-[10px] uppercase tracking-widest">
             <ShieldCheck className="w-3 h-3" /> Low
           </div>
           <div className="text-base font-bold text-emerald-400">{lowCount}</div>
@@ -339,11 +339,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               <div
                 key={evt.id}
                 onClick={() => onSelectEvent(evt)}
-                className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                className={`p-3 rounded-lg border transition-all duration-300 cursor-pointer animate-feed-in hover:-translate-y-0.5 focus:ring-2 focus:ring-blue-500/50 outline-none ${
                   isSelected
-                    ? 'bg-slate-900 border-blue-500 shadow-md shadow-blue-950/40'
-                    : 'bg-slate-900/50 border-slate-800/80 hover:bg-slate-900 hover:border-slate-700'
+                    ? 'bg-slate-900/80 border-blue-500/80 shadow-[0_0_15px_rgba(59,130,246,0.25)] backdrop-blur-md'
+                    : 'bg-slate-900/40 border-slate-800/60 hover:bg-slate-900/60 hover:border-slate-700/80 hover:shadow-[0_4px_12px_rgba(0,0,0,0.3)] backdrop-blur-sm'
                 }`}
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectEvent(evt); }}
               >
                 <div className="flex items-start justify-between gap-2 mb-1.5">
                   <h3 className="text-xs font-semibold text-slate-200 line-clamp-1 leading-snug">
