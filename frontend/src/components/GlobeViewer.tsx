@@ -148,6 +148,7 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
     return () => {
       handler.destroy();
       if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+        viewerRef.current.entities.removeAll();
         viewerRef.current.destroy();
         viewerRef.current = null;
       }
@@ -252,9 +253,14 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
     });
 
     if (entitiesToRemove.length > 0) {
-      entitiesToRemove.forEach((entity) => {
-        viewer.entities.remove(entity);
-      });
+      viewer.entities.suspendEvents();
+      try {
+        entitiesToRemove.forEach((entity) => {
+          viewer.entities.remove(entity);
+        });
+      } finally {
+        viewer.entities.resumeEvents();
+      }
       needsRender = true;
     }
 
@@ -271,10 +277,15 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
     if (!viewer) return;
 
     // 1. Clear previous heatmap entities
-    heatmapEntitiesRef.current.forEach(entity => {
-      viewer.entities.remove(entity);
-    });
-    heatmapEntitiesRef.current = [];
+    viewer.entities.suspendEvents();
+    try {
+      heatmapEntitiesRef.current.forEach(entity => {
+        viewer.entities.remove(entity);
+      });
+      heatmapEntitiesRef.current = [];
+    } finally {
+      viewer.entities.resumeEvents();
+    }
 
     // 2. If disabled, stop here and render
     if (!showHeatmap) {
