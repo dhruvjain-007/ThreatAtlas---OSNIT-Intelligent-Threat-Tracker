@@ -38,7 +38,36 @@ class IntelligenceService:
             nlp_result = await nlp_service.process_text(raw_post.text)
 
         # 2. Fetch candidate events for clustering
-        candidate_events = await event_repo.list_events(limit=50)
+        from datetime import timedelta
+        import math
+        from app.intelligence.config import MAX_TEMPORAL_WINDOW_SECONDS, MAX_SPATIAL_DISTANCE_KM
+
+        start_date = raw_post.original_timestamp - timedelta(seconds=MAX_TEMPORAL_WINDOW_SECONDS)
+        end_date = raw_post.original_timestamp + timedelta(seconds=MAX_TEMPORAL_WINDOW_SECONDS)
+
+        bbox = None
+        if nlp_result.locations:
+            primary_loc = nlp_result.locations[0]
+            if primary_loc.lat != 0.0 or primary_loc.lng != 0.0:
+                lat_delta = MAX_SPATIAL_DISTANCE_KM / 111.0
+                cos_lat = math.cos(math.radians(primary_loc.lat))
+                if cos_lat < 0.1:
+                    cos_lat = 0.1
+                lon_delta = MAX_SPATIAL_DISTANCE_KM / (111.0 * cos_lat)
+                
+                min_lon = max(-180.0, primary_loc.lng - lon_delta)
+                min_lat = max(-90.0, primary_loc.lat - lat_delta)
+                max_lon = min(180.0, primary_loc.lng + lon_delta)
+                max_lat = min(90.0, primary_loc.lat + lat_delta)
+                
+                bbox = [min_lon, min_lat, max_lon, max_lat]
+
+        candidate_events = await event_repo.list_events(
+            limit=50,
+            start_date=start_date,
+            end_date=end_date,
+            bbox=bbox
+        )
 
         # 3. Find matching event
         match_result = find_best_matching_event(
