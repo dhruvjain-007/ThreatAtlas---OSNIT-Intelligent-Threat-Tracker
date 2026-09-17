@@ -56,6 +56,7 @@ const aggregateThreatGrid = (events: Event[], cellSize = 2): Map<string, Heatmap
 };
 
 interface GlobeViewerProps {
+  playbackTime?: number | null;
   events: Event[];
   selectedEvent: Event | null;
   onSelectEvent: (event: Event) => void;
@@ -64,6 +65,7 @@ interface GlobeViewerProps {
 
 export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
   events,
+  playbackTime = null,
   selectedEvent,
   onSelectEvent,
   showHeatmap = false,
@@ -235,6 +237,7 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
           },
           properties: {
             eventId: evt.id,
+            timestamp: new Date(evt.event_timestamp).getTime(),
           },
         });
         needsRender = true;
@@ -263,68 +266,129 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
     }
   }, [events]);
 
+  // Update entity visibility during temporal playback
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    let visibilityChanged = false;
+    viewer.entities.values.forEach((entity) => {
+      const ts = entity.properties?.timestamp?.getValue();
+      if (ts) {
+        const shouldShow = playbackTime === null || ts <= playbackTime;
+        if (entity.show !== shouldShow) {
+          entity.show = shouldShow;
+          visibilityChanged = true;
+        }
+      }
+    });
+
+    if (visibilityChanged) {
+      viewer.scene.requestRender();
+    }
+  }, [playbackTime, events]);
+
   const heatmapEntitiesRef = useRef<Cesium.Entity[]>([]);
+
+  const heatmapPendingRef = useRef<number | null>(null);
+  const heatmapLastRunRef = useRef<number>(0);
+  const isMountedRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (heatmapPendingRef.current) {
+        window.clearTimeout(heatmapPendingRef.current);
+      }
+    };
+  }, []);
 
   // Render Heatmap Layer
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
 
-    // 1. Clear previous heatmap entities
-    heatmapEntitiesRef.current.forEach(entity => {
-      viewer.entities.remove(entity);
-    });
-    heatmapEntitiesRef.current = [];
+    const executeHeatmapUpdate = () => {
+      if (!isMountedRef.current || !viewerRef.current) return;
 
-    // 2. If disabled, stop here and render
-    if (!showHeatmap) {
-      viewer.scene.requestRender();
-      return;
-    }
+      heatmapPendingRef.current = null;
+      heatmapLastRunRef.current = Date.now();
 
-    // 3. Aggregate events into grid
-    const grid = aggregateThreatGrid(events, 2);
+      // 1. Clear previous heatmap entities
+      heatmapEntitiesRef.current.forEach(entity => {
+        viewerRef.current!.entities.remove(entity);
+      });
+      heatmapEntitiesRef.current = [];
 
-    // 4. Find max intensity for normalization
-    let maxIntensity = 0;
-    grid.forEach(cell => {
-      if (cell.intensity > maxIntensity) {
-        maxIntensity = cell.intensity;
-      }
-    });
-
-    if (maxIntensity === 0) {
-      viewer.scene.requestRender();
-      return;
-    }
-
-    // 5. Render normalized cells
-    grid.forEach(cell => {
-      const normalized = cell.intensity / maxIntensity;
-
-      let color: Cesium.Color;
-      if (normalized < 0.33) {
-        color = Cesium.Color.fromCssColorString('#EAB308').withAlpha(0.2 + (normalized * 0.5)); // Yellow
-      } else if (normalized < 0.66) {
-        color = Cesium.Color.fromCssColorString('#F97316').withAlpha(0.3 + (normalized * 0.5)); // Orange
-      } else {
-        color = Cesium.Color.fromCssColorString('#DC2626').withAlpha(0.4 + (normalized * 0.5)); // Red
+      // 2. If disabled, stop here and render
+      if (!showHeatmap) {
+        viewerRef.current!.scene.requestRender();
+        return;
       }
 
-      const rect = viewer.entities.add({
-        rectangle: {
-          coordinates: Cesium.Rectangle.fromDegrees(cell.minLon, cell.minLat, cell.maxLon, cell.maxLat),
-          material: new Cesium.ColorMaterialProperty(color),
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-          outline: false,
+      // Filter events temporally for the heatmap calculation
+      const heatmapEvents = playbackTime === null
+        ? events
+        : events.filter(e => new Date(e.event_timestamp).getTime() <= playbackTime);
+
+      // 3. Aggregate events into grid
+      const grid = aggregateThreatGrid(heatmapEvents, 2);
+
+      // 4. Find max intensity for normalization
+      let maxIntensity = 0;
+      grid.forEach(cell => {
+        if (cell.intensity > maxIntensity) {
+          maxIntensity = cell.intensity;
         }
       });
 
-      heatmapEntitiesRef.current.push(rect);
-    });
+      if (maxIntensity === 0) {
+        viewerRef.current!.scene.requestRender();
+        return;
+      }
 
-    viewer.scene.requestRender();
-  }, [events, showHeatmap]);
+      // 5. Render normalized cells
+      grid.forEach(cell => {
+        const normalized = cell.intensity / maxIntensity;
+
+        let color: Cesium.Color;
+        if (normalized < 0.33) {
+          color = Cesium.Color.fromCssColorString('#EAB308').withAlpha(0.2 + (normalized * 0.5)); // Yellow
+        } else if (normalized < 0.66) {
+          color = Cesium.Color.fromCssColorString('#F97316').withAlpha(0.3 + (normalized * 0.5)); // Orange
+        } else {
+          color = Cesium.Color.fromCssColorString('#DC2626').withAlpha(0.4 + (normalized * 0.5)); // Red
+        }
+
+        const rect = viewerRef.current!.entities.add({
+          rectangle: {
+            coordinates: Cesium.Rectangle.fromDegrees(cell.minLon, cell.minLat, cell.maxLon, cell.maxLat),
+            material: new Cesium.ColorMaterialProperty(color),
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            outline: false,
+          }
+        });
+
+        heatmapEntitiesRef.current.push(rect);
+      });
+
+      viewerRef.current!.scene.requestRender();
+    };
+
+    const now = Date.now();
+    const timeSinceLastRun = now - heatmapLastRunRef.current;
+
+    if (timeSinceLastRun >= 250) {
+      if (heatmapPendingRef.current) {
+        window.clearTimeout(heatmapPendingRef.current);
+        heatmapPendingRef.current = null;
+      }
+      executeHeatmapUpdate();
+    } else if (!heatmapPendingRef.current) {
+      heatmapPendingRef.current = window.setTimeout(executeHeatmapUpdate, 250 - timeSinceLastRun);
+    }
+  }, [events, showHeatmap, playbackTime]);
 
   // Fly to selected event when changed from sidebar list or external state
   useEffect(() => {
