@@ -37,24 +37,24 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({ event, onC
   const threatBreakdown = event.score_breakdown?.threat;
 
   return (
-    <div className="fixed right-0 top-16 bottom-0 w-[450px] max-w-[90vw] bg-slate-950/95 border-l border-slate-800/80 z-30 shadow-2xl flex flex-col backdrop-blur-lg animate-in slide-in-from-right duration-200 select-none">
+    <div className="fixed right-0 top-16 bottom-0 w-[450px] max-w-[90vw] bg-slate-950/60 border-l border-slate-800/50 z-30 shadow-[-10px_0_30px_rgba(0,0,0,0.5)] flex flex-col backdrop-blur-xl animate-in slide-in-from-right duration-300 select-none">
       {/* Drawer Header */}
-      <div className="p-5 border-b border-slate-800 flex items-start justify-between gap-4">
+      <div className="p-5 border-b border-slate-800/50 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span className={`px-2.5 py-1 text-xs font-mono font-bold rounded border uppercase ${threatBadgeColor}`}>
+            <span className={`px-2.5 py-1 text-xs font-mono font-bold rounded border uppercase shadow-sm ${threatBadgeColor}`}>
               {event.threat_level} Threat
             </span>
-            <span className="text-xs font-mono text-slate-400 bg-slate-900 border border-slate-800 px-2 py-1 rounded">
+            <span className="text-xs font-mono text-slate-400 bg-slate-900/40 border border-slate-800/60 px-2 py-1 rounded backdrop-blur-sm">
               Corroboration: {event.corroboration_count} Source(s)
             </span>
           </div>
-          <h2 className="text-base font-bold text-slate-100 leading-snug">{event.title}</h2>
+          <h2 className="text-base font-bold text-slate-100 leading-snug tracking-wide">{event.title}</h2>
         </div>
 
         <button
           onClick={onClose}
-          className="p-1.5 text-slate-400 hover:text-slate-100 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-all cursor-pointer"
+          className="p-1.5 text-slate-400 hover:text-slate-100 bg-slate-900/40 hover:bg-slate-800/60 border border-slate-800/60 rounded-lg transition-all cursor-pointer backdrop-blur-sm hover:shadow-[0_0_10px_rgba(148,163,184,0.15)] focus:ring-2 focus:ring-slate-500 outline-none"
         >
           <X className="w-4 h-4" />
         </button>

@@ -106,7 +106,7 @@ export const PlaybackSlider: React.FC<PlaybackSliderProps> = ({ events, playback
   const currentDisplayTime = playbackTime !== null ? playbackTime : maxTime;
 
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-950/90 border border-slate-800 text-slate-200 px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col gap-3 min-w-[500px]">
+    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-950/70 border border-slate-800/60 text-slate-200 px-6 py-4 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-xl flex flex-col gap-3 min-w-[500px]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-blue-400" />
@@ -114,7 +114,7 @@ export const PlaybackSlider: React.FC<PlaybackSliderProps> = ({ events, playback
             Temporal Playback
           </h3>
         </div>
-        <div className="text-xs font-mono text-blue-300 font-bold bg-blue-950/50 px-2 py-1 rounded">
+        <div className="text-xs font-mono text-blue-300 font-bold bg-blue-950/50 px-2 py-1 rounded shadow-inner shadow-blue-900/20">
           {new Date(currentDisplayTime).toLocaleString()}
         </div>
       </div>
@@ -124,10 +124,10 @@ export const PlaybackSlider: React.FC<PlaybackSliderProps> = ({ events, playback
           <button
             onClick={handlePlayPause}
             disabled={isDisabled || !hasRange}
-            className={`p-2 rounded-lg border transition-all ${
+            className={`p-2 rounded-lg border transition-all focus:ring-2 focus:ring-blue-500/50 outline-none ${
               isPlaying
-                ? 'bg-amber-900/50 border-amber-800 text-amber-400 hover:bg-amber-900/70'
-                : 'bg-blue-900/50 border-blue-800 text-blue-400 hover:bg-blue-900/70'
+                ? 'bg-amber-900/50 border-amber-800/60 text-amber-400 hover:bg-amber-900/70 hover:shadow-[0_0_10px_rgba(217,119,6,0.2)]'
+                : 'bg-blue-900/40 border-blue-800/60 text-blue-400 hover:bg-blue-900/60 hover:shadow-[0_0_10px_rgba(59,130,246,0.2)]'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
             title={isPlaying ? 'Pause' : 'Play'}
           >
@@ -137,7 +137,7 @@ export const PlaybackSlider: React.FC<PlaybackSliderProps> = ({ events, playback
           <button
             onClick={handleReset}
             disabled={isDisabled || playbackTime === null}
-            className="p-2 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 rounded-lg border border-slate-700/60 bg-slate-800/40 text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-slate-500/50 outline-none hover:shadow-[0_0_10px_rgba(148,163,184,0.1)]"
             title="Reset"
           >
             <RotateCcw className="w-4 h-4" />
