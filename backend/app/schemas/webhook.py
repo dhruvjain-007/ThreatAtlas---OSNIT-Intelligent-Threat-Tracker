@@ -15,6 +15,10 @@ class WebhookAlertBase(BaseModel):
         default=None,
         description="Geographic bounding box: [[min_lon, min_lat], [max_lon, max_lat]]"
     )
+    geometry: Optional[dict] = Field(
+        default=None,
+        description="GeoJSON geometry for polygon geofencing"
+    )
 
     @validator("url")
     def validate_url_scheme(cls, v):
@@ -55,6 +59,37 @@ class WebhookAlertBase(BaseModel):
             raise ValueError("Invalid bounding box min/max ordering")
         return v
 
+    @validator("geometry")
+    def validate_geometry(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, dict):
+            raise ValueError("geometry must be a GeoJSON object")
+        if v.get("type") != "Polygon":
+            raise ValueError("geometry type must be Polygon")
+
+        coords = v.get("coordinates")
+        if not isinstance(coords, list) or len(coords) == 0:
+            raise ValueError("Polygon must have coordinates")
+
+        ring = coords[0]
+        if not isinstance(ring, list) or len(ring) < 4:
+            raise ValueError("Polygon linear ring must have at least 4 points")
+
+        first_point = ring[0]
+        last_point = ring[-1]
+        if first_point != last_point:
+            raise ValueError("Polygon linear ring must be closed (first and last points must match)")
+
+        for pt in ring:
+            if not isinstance(pt, list) or len(pt) != 2:
+                raise ValueError("Coordinates must be [longitude, latitude]")
+            lon, lat = pt
+            if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+                raise ValueError("Coordinates out of bounds")
+
+        return v
+
 
 class WebhookAlertCreate(WebhookAlertBase):
     pass
@@ -67,6 +102,7 @@ class WebhookAlertUpdate(BaseModel):
     min_threat_level: Optional[Literal["High", "Critical"]] = None
     countries: Optional[List[str]] = None
     bbox: Optional[List[List[float]]] = None
+    geometry: Optional[dict] = None
 
     @validator("url")
     def validate_url_scheme(cls, v):
@@ -93,6 +129,37 @@ class WebhookAlertUpdate(BaseModel):
         max_lon, max_lat = v[1]
         if min_lon > max_lon or min_lat > max_lat:
             raise ValueError("Invalid bounding box min/max ordering")
+        return v
+
+    @validator("geometry")
+    def validate_geometry(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, dict):
+            raise ValueError("geometry must be a GeoJSON object")
+        if v.get("type") != "Polygon":
+            raise ValueError("geometry type must be Polygon")
+
+        coords = v.get("coordinates")
+        if not isinstance(coords, list) or len(coords) == 0:
+            raise ValueError("Polygon must have coordinates")
+
+        ring = coords[0]
+        if not isinstance(ring, list) or len(ring) < 4:
+            raise ValueError("Polygon linear ring must have at least 4 points")
+
+        first_point = ring[0]
+        last_point = ring[-1]
+        if first_point != last_point:
+            raise ValueError("Polygon linear ring must be closed (first and last points must match)")
+
+        for pt in ring:
+            if not isinstance(pt, list) or len(pt) != 2:
+                raise ValueError("Coordinates must be [longitude, latitude]")
+            lon, lat = pt
+            if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+                raise ValueError("Coordinates out of bounds")
+
         return v
 
 
