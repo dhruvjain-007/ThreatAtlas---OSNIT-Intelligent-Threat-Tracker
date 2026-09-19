@@ -189,7 +189,8 @@ export const App: React.FC = () => {
 
           {/* Cesium Globe */}
           <GlobeViewer
-            events={visibleEvents}
+            events={playbackTime === null ? events : playbackEvents}
+            playbackTime={playbackTime}
             selectedEvent={selectedEvent}
             onSelectEvent={setSelectedEvent}
             showHeatmap={showHeatmap}
