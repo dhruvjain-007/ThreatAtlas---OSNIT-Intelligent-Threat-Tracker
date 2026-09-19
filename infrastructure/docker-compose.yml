@@ -7,6 +7,12 @@ services:
       - "27017:27017"
     environment:
       MONGO_INITDB_DATABASE: threat_atlas
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     volumes:
       - mongodb_data:/data/db
 
@@ -16,6 +22,11 @@ services:
     restart: always
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - redis_data:/data
 

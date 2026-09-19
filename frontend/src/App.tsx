@@ -154,10 +154,10 @@ export const App: React.FC = () => {
         <main className="flex-1 relative">
           {/* Real-Time Toast Banner Notification */}
           {liveToast && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-950/95 border border-blue-500/80 text-blue-100 px-5 py-3 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-3 font-mono text-xs animate-bounce">
-              <Zap className="w-4 h-4 text-blue-400 animate-pulse shrink-0" />
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-950/70 border border-blue-500/40 text-blue-100 px-5 py-3 rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.2)] backdrop-blur-md flex items-center gap-3 font-mono text-xs animate-feed-in transition-all">
+              <Zap className="w-4 h-4 text-blue-400 animate-soc-pulse shrink-0" />
               <span>{liveToast.message}</span>
-              <button onClick={() => setLiveToast(null)} className="text-blue-400 hover:text-white ml-2 cursor-pointer">
+              <button onClick={() => setLiveToast(null)} className="text-blue-400 hover:text-white ml-2 cursor-pointer focus:ring-2 focus:ring-blue-500 rounded outline-none">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -165,14 +165,14 @@ export const App: React.FC = () => {
 
           {/* Connection Error Banner */}
           {error && (
-            <div className="absolute top-4 left-4 right-4 z-40 bg-red-950/90 border border-red-800 text-red-200 p-4 rounded-lg flex items-center justify-between shadow-2xl backdrop-blur-md font-mono text-xs">
+            <div className="absolute top-4 left-4 right-4 z-40 bg-red-950/70 border border-red-800/50 text-red-200 p-4 rounded-lg flex items-center justify-between shadow-[0_0_20px_rgba(220,38,38,0.2)] backdrop-blur-md font-mono text-xs animate-feed-in">
               <div className="flex items-center gap-3">
                 <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
                 <span>{error}</span>
               </div>
               <button
                 onClick={loadEvents}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900 hover:bg-red-800 text-white rounded font-medium cursor-pointer transition-all shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/80 hover:bg-red-800 text-white rounded font-medium cursor-pointer transition-all shrink-0 focus:ring-2 focus:ring-red-400 outline-none"
               >
                 <RefreshCw className="w-3.5 h-3.5" /> Retry
               </button>
@@ -181,7 +181,7 @@ export const App: React.FC = () => {
 
           {/* Loading Overlay */}
           {loading && (
-            <div className="absolute top-4 right-4 z-20 bg-slate-900/80 border border-slate-800 text-slate-300 px-3 py-1.5 rounded-md font-mono text-xs flex items-center gap-2 backdrop-blur-sm">
+            <div className="absolute top-4 right-4 z-20 bg-slate-900/60 border border-slate-800/50 text-slate-300 px-3 py-1.5 rounded-md font-mono text-xs flex items-center gap-2 backdrop-blur-md shadow-lg">
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-400" />
               <span>Fetching Intelligence...</span>
             </div>
@@ -195,12 +195,18 @@ export const App: React.FC = () => {
             onSelectEvent={setSelectedEvent}
             showHeatmap={showHeatmap}
           />
+
+          {/* Immersive Map Vignette Overlay */}
+          <div className="absolute inset-0 pointer-events-none z-10 shadow-[inset_0_0_120px_rgba(3,7,18,0.85)]" />
+
           {/* Temporal Playback Slider */}
-          <PlaybackSlider
-            events={playbackEvents} // Pass full filtered dataset to calculate range
-            playbackTime={playbackTime}
-            setPlaybackTime={setPlaybackTime}
-          />
+          <div className="z-20 relative">
+            <PlaybackSlider
+              events={playbackEvents} // Pass full filtered dataset to calculate range
+              playbackTime={playbackTime}
+              setPlaybackTime={setPlaybackTime}
+            />
+          </div>
         </main>
 
         {/* Right Event Intelligence Detail Drawer */}

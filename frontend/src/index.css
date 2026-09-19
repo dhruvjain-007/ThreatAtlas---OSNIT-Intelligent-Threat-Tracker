@@ -66,3 +66,37 @@ body, html, #root {
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
+
+/* Cyber-SOC Animations */
+@keyframes feed-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-feed-in {
+  animation: feed-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes soc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-soc-pulse {
+  animation: soc-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-feed-in,
+  .animate-soc-pulse {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

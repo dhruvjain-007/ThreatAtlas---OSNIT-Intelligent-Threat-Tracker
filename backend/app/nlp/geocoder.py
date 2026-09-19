@@ -1,14 +1,20 @@
 import httpx
+import sqlite3
+import time
+import os
+import logging
 from typing import Optional, Tuple
 from app.db.session import get_database
+from app.core.config import settings, ROOT_DIR
 
 USER_AGENT = "ThreatAtlas/1.0 (Student Project)"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+logger = logging.getLogger("threat_atlas.ingestion")
 
 async def geocode(location_name: str) -> Optional[Tuple[float, float, Optional[str]]]:
     """
     Geocodes a location name to (lat, lng, country_code).
-    Uses a local MongoDB cache to avoid Nominatim rate limits.
+    Fallback sequence: SQLite GeoNames cache -> MongoDB geocache -> Nominatim API.
     Returns (lat, lng, country_code) or None if not found.
     """
     if not location_name:
@@ -16,7 +22,30 @@ async def geocode(location_name: str) -> Optional[Tuple[float, float, Optional[s
 
     normalized_name = location_name.strip().lower()
 
-    # 1. Check Cache
+    # 1. Check Offline SQLite GeoNames Cache
+    db_path = os.path.join(ROOT_DIR, settings.GEONAMES_DB_PATH)
+    if os.path.exists(db_path):
+        try:
+            start_time = time.perf_counter()
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT lat, lng, country_code FROM geonames WHERE LOWER(name) = ? LIMIT 1",
+                    (normalized_name,)
+                )
+                row = cursor.fetchone()
+
+            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+
+            if row:
+                logger.info("SQLite GeoNames hit for '%s' in %.2fms", normalized_name, elapsed_ms)
+                return (float(row[0]), float(row[1]), row[2])
+            else:
+                logger.debug("SQLite GeoNames miss for '%s' in %.2fms", normalized_name, elapsed_ms)
+        except Exception as e:
+            logger.warning("SQLite GeoNames cache error for '%s': %s", normalized_name, e)
+
+    # 2. Check MongoDB Cache
     db = get_database()
     cache = db.geocache
     cached = await cache.find_one({"name": normalized_name})
@@ -25,7 +54,7 @@ async def geocode(location_name: str) -> Optional[Tuple[float, float, Optional[s
             return None
         return (cached["lat"], cached["lng"], cached.get("country_code"))
 
-    # 2. Query Nominatim
+    # 3. Query Nominatim
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(

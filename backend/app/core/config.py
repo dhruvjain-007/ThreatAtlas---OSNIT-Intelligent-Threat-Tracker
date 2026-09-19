@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Redis Settings
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # SQLite GeoNames Cache
+    GEONAMES_DB_PATH: str = "data/geonames.sqlite"
+
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / ".env",
         env_file_encoding="utf-8",
