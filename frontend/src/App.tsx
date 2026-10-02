@@ -60,6 +60,10 @@ export const App: React.FC = () => {
       const healthy = await checkHealth();
       setIsOnline(healthy);
 
+      if (!healthy) {
+        throw new Error('Backend health check failed');
+      }
+
       // Fetch normal dashboard events — this determines connection status
       const res = await fetchEvents(filters);
       setEvents(res.items);

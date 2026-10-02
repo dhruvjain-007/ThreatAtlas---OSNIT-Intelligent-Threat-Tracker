@@ -116,8 +116,27 @@ export const processPendingPosts = async (): Promise<ProcessPendingResponse> => 
 
 export const checkHealth = async (): Promise<boolean> => {
   try {
-    const response = await apiClient.get('/health');
-    return response.status === 200;
+    const response = await apiClient.get('/health', {
+      // Prevent axios from throwing on 4xx/5xx so we can handle it manually if needed,
+      // though axios defaults to throwing which is fine since it goes to catch block.
+      // We'll rely on the default throw for 4xx/5xx.
+    });
+
+    if (response.status !== 200) {
+      return false;
+    }
+
+    const contentType = String(response.headers['content-type'] || '');
+    if (!contentType.includes('application/json')) {
+      return false;
+    }
+
+    const data = response.data;
+    if (data && typeof data === 'object' && data.status === 'ok') {
+      return true;
+    }
+
+    return false;
   } catch (err) {
     return false;
   }
