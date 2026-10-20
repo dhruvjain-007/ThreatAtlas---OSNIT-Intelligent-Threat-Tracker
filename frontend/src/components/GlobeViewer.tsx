@@ -73,6 +73,14 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
 
+  const eventsRef = useRef(events);
+  const onSelectEventRef = useRef(onSelectEvent);
+
+  useEffect(() => {
+    eventsRef.current = events;
+    onSelectEventRef.current = onSelectEvent;
+  }, [events, onSelectEvent]);
+
   // Initialize Cesium Viewer ONCE
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
@@ -125,9 +133,9 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
       if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.properties) {
         const eventId = pickedObject.id.properties.eventId?.getValue();
         if (eventId) {
-          const targetEvent = events.find((e) => e.id === eventId);
+          const targetEvent = eventsRef.current.find((e) => e.id === eventId);
           if (targetEvent) {
-            onSelectEvent(targetEvent);
+            onSelectEventRef.current(targetEvent);
 
             // Execute camera flyTo on marker click
             if (targetEvent.location?.coordinates && targetEvent.location.coordinates.length >= 2) {
