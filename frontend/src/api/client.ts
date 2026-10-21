@@ -96,8 +96,17 @@ export const getEventById = async (id: string): Promise<Event> => {
 };
 
 export const getEventSources = async (id: string): Promise<RawPost[]> => {
-  const response = await apiClient.get<RawPost[]>(`/events/${id}/sources`);
-  return response.data;
+  try {
+    const response = await apiClient.get<RawPost[]>(`/events/${id}/sources`);
+    return response.data || [];
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      console.warn(`[getEventSources] Event or sources not found for ID "${id}" (404). Falling back to empty array.`);
+      return [];
+    }
+    console.error(`[getEventSources] Failed to fetch event sources for ID "${id}":`, err);
+    return [];
+  }
 };
 
 export const fetchRawPosts = async (source?: string, status?: string): Promise<RawPostListResponse> => {

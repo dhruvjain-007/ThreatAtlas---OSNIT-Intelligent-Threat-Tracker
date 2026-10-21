@@ -198,27 +198,44 @@ async def get_event(id: str):
     return event
 
 
-@router.get("/{id}/sources", response_model=List[RawPostResponse], summary="Get Contributing Raw Posts for Event")
-async def get_event_sources(id: str):
-    """Retrieve all RawPost documents that contributed to this intelligence event."""
-    if not ObjectId.is_valid(id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid Event ID format: '{id}'. Must be a valid 24-character hex string.",
-        )
-
+@router.get("/{event_id}/sources", response_model=List[RawPostResponse], summary="Get Contributing Raw Posts for Event")
+async def get_event_sources(event_id: str):
+    """
+    Retrieve all RawPost documents that contributed to this intelligence event:
+    1. Queries the event by its _id (handling both ObjectId and string matches).
+    2. Fetches associated raw posts using raw_post_ids, source_post_ids, or source_ids from db.raw_posts.
+    3. If the event is not found, returns HTTP 404 with detail 'Event not found'.
+    """
     db = get_database()
-    event_repo = EventRepository(db)
     raw_post_repo = RawPostRepository(db)
 
-    event = await event_repo.get_by_id(id)
-    if not event:
+    # 1. Query the event by its _id handling both ObjectId(event_id) and string matches
+    query_conditions = [{"_id": event_id}]
+    if ObjectId.is_valid(event_id):
+        query_conditions.append({"_id": ObjectId(event_id)})
+
+    event_doc = await db["events"].find_one(
+        {"$or": query_conditions} if len(query_conditions) > 1 else query_conditions[0]
+    )
+
+    if not event_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Intelligence Event with ID '{id}' not found.",
+            detail="Event not found",
         )
 
-    if not event.raw_post_ids:
+    # 2. Gather candidate post IDs from event fields
+    candidate_ids: List[str] = []
+    if event_doc.get("raw_post_ids"):
+        candidate_ids.extend([str(pid) for pid in event_doc["raw_post_ids"] if pid])
+    if event_doc.get("source_post_ids"):
+        candidate_ids.extend([str(pid) for pid in event_doc["source_post_ids"] if pid])
+    if event_doc.get("source_ids"):
+        candidate_ids.extend([str(sid) for sid in event_doc["source_ids"] if sid])
+
+    unique_candidate_ids = list(dict.fromkeys(candidate_ids))
+    if not unique_candidate_ids:
         return []
 
-    return await raw_post_repo.get_by_ids(event.raw_post_ids)
+    # 3. Fetch associated raw posts from db.raw_posts
+    return await raw_post_repo.get_by_ids(unique_candidate_ids)

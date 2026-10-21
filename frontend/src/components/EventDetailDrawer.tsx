@@ -17,8 +17,11 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({ event, onC
 
     setLoadingSources(true);
     getEventSources(event.id)
-      .then((data) => setSources(data))
-      .catch((err) => console.error('Failed to load event sources:', err))
+      .then((data) => setSources(data || []))
+      .catch((err) => {
+        console.warn('Failed to load event sources:', err);
+        setSources([]);
+      })
       .finally(() => setLoadingSources(false));
   }, [event?.id]);
 
@@ -192,11 +195,16 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({ event, onC
         {/* Contributing Public OSINT Sources */}
         <div className="space-y-3 pt-2">
           <h3 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-            <span>Contributing OSINT Sources ({event.source_ids.length})</span>
+            <span>Contributing OSINT Sources ({sources.length > 0 ? sources.length : (event.source_ids?.length || 0)})</span>
             {loadingSources && <span className="text-[10px] text-blue-400 animate-pulse">Loading sources...</span>}
           </h3>
 
           <div className="space-y-2">
+            {!loadingSources && sources.length === 0 && (
+              <div className="p-4 bg-slate-900/40 border border-slate-800/60 rounded-lg text-center backdrop-blur-sm">
+                <p className="text-slate-400 text-xs font-mono">No source articles found for this event.</p>
+              </div>
+            )}
             {sources.map((post) => (
               <div key={post.id} className="p-3 bg-slate-900/80 border border-slate-800/80 rounded-lg text-xs space-y-1.5">
                 <div className="flex items-center justify-between">

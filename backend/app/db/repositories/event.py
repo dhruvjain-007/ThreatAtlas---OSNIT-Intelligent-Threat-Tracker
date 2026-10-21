@@ -27,24 +27,21 @@ class EventRepository:
         return self._to_response(doc)
 
     async def get_by_id(self, event_id: str) -> Optional[EventResponse]:
-        """Retrieve an Event by its string ObjectId."""
-        if not ObjectId.is_valid(event_id):
-            return None
-        doc = await self.collection.find_one({"_id": ObjectId(event_id)})
+        """Retrieve an Event by its ObjectId or string _id."""
+        query = {"$or": [{"_id": ObjectId(event_id)}, {"_id": event_id}]} if ObjectId.is_valid(event_id) else {"_id": event_id}
+        doc = await self.collection.find_one(query)
         return self._to_response(doc) if doc else None
 
     async def update(self, event_id: str, event_update: EventUpdate) -> Optional[EventResponse]:
         """Update an existing Event document with non-None values."""
-        if not ObjectId.is_valid(event_id):
-            return None
-
         update_data = event_update.model_dump(exclude_unset=True)
         if not update_data:
             return await self.get_by_id(event_id)
 
         update_data["updated_at"] = utc_now()
+        query = {"$or": [{"_id": ObjectId(event_id)}, {"_id": event_id}]} if ObjectId.is_valid(event_id) else {"_id": event_id}
         result = await self.collection.find_one_and_update(
-            {"_id": ObjectId(event_id)},
+            query,
             {"$set": update_data},
             return_document=True,
         )

@@ -273,3 +273,97 @@ def test_cors_headers_handling():
     assert response_vercel.headers.get("access-control-allow-origin") == "https://threat-atlas-osnit-intelligent-thre.vercel.app"
 
 
+def test_get_event_sources_found(mocker):
+    """Test GET /api/v1/events/{event_id}/sources with existing event."""
+    event_id = str(ObjectId())
+    post_id = str(ObjectId())
+    now = utc_now()
+
+    mock_db = MagicMock()
+    mock_events_col = AsyncMock()
+    mock_events_col.find_one = AsyncMock(return_value={
+        "_id": ObjectId(event_id),
+        "title": "Incident in Kyiv",
+        "raw_post_ids": [post_id],
+        "source_ids": ["reuters"],
+    })
+    mock_db.__getitem__.side_effect = lambda name: mock_events_col if name == "events" else MagicMock()
+    mocker.patch("app.api.v1.endpoints.events.get_database", return_value=mock_db)
+
+    mock_raw_post = RawPostResponse(
+        id=post_id,
+        source="reuters",
+        source_specific_id="reuters-1",
+        text="Explosion reported in Kyiv",
+        original_timestamp=now,
+        collected_at=now,
+        processing_status="processed",
+        created_at=now,
+        updated_at=now,
+    )
+    mocker.patch(
+        "app.api.v1.endpoints.events.RawPostRepository.get_by_ids",
+        AsyncMock(return_value=[mock_raw_post]),
+    )
+
+    response = client.get(f"/api/v1/events/{event_id}/sources")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == post_id
+    assert data[0]["source"] == "reuters"
+
+
+def test_get_event_sources_string_id(mocker):
+    """Test GET /api/v1/events/{event_id}/sources with string-based ID."""
+    event_id = "custom_event_123"
+    post_id = "post_abc"
+    now = utc_now()
+
+    mock_db = MagicMock()
+    mock_events_col = AsyncMock()
+    mock_events_col.find_one = AsyncMock(return_value={
+        "_id": event_id,
+        "title": "Incident in Paris",
+        "source_post_ids": [post_id],
+    })
+    mock_db.__getitem__.side_effect = lambda name: mock_events_col if name == "events" else MagicMock()
+    mocker.patch("app.api.v1.endpoints.events.get_database", return_value=mock_db)
+
+    mock_raw_post = RawPostResponse(
+        id=post_id,
+        source="bbc",
+        source_specific_id="bbc-1",
+        text="Incident near Paris",
+        original_timestamp=now,
+        collected_at=now,
+        processing_status="processed",
+        created_at=now,
+        updated_at=now,
+    )
+    mocker.patch(
+        "app.api.v1.endpoints.events.RawPostRepository.get_by_ids",
+        AsyncMock(return_value=[mock_raw_post]),
+    )
+
+    response = client.get(f"/api/v1/events/{event_id}/sources")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == post_id
+
+
+def test_get_event_sources_not_found(mocker):
+    """Test GET /api/v1/events/{event_id}/sources returns 404 when event not found."""
+    mock_db = MagicMock()
+    mock_events_col = AsyncMock()
+    mock_events_col.find_one = AsyncMock(return_value=None)
+    mock_db.__getitem__.side_effect = lambda name: mock_events_col if name == "events" else MagicMock()
+    mocker.patch("app.api.v1.endpoints.events.get_database", return_value=mock_db)
+
+    response = client.get("/api/v1/events/nonexistent_id/sources")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Event not found"
+
+
+

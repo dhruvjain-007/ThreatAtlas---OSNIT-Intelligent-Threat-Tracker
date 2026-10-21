@@ -51,13 +51,26 @@ class RawPostRepository:
         return self._to_response(doc) if doc else None
 
     async def get_by_ids(self, post_ids: List[str]) -> List[RawPostResponse]:
-        """Retrieve multiple RawPosts by a list of string ObjectIds."""
-        valid_ids = [ObjectId(pid) for pid in post_ids if ObjectId.is_valid(pid)]
-        if not valid_ids:
+        """Retrieve multiple RawPosts by a list of string IDs, ObjectIds, or source_specific_ids."""
+        if not post_ids:
             return []
-        cursor = self.collection.find({"_id": {"$in": valid_ids}}).sort("original_timestamp", -1)
-        docs = await cursor.to_list(length=len(valid_ids))
-        return [self._to_response(doc) for doc in docs]
+        valid_ids = [ObjectId(pid) for pid in post_ids if ObjectId.is_valid(pid)]
+        str_ids = [str(pid) for pid in post_ids if pid]
+        query_clauses = [
+            {"_id": {"$in": valid_ids + str_ids}},
+            {"source_specific_id": {"$in": str_ids}},
+        ]
+        cursor = self.collection.find({"$or": query_clauses}).sort("original_timestamp", -1)
+        docs = await cursor.to_list(length=max(100, len(post_ids) * 2))
+
+        seen_ids = set()
+        results = []
+        for doc in docs:
+            resp = self._to_response(doc)
+            if resp.id not in seen_ids:
+                seen_ids.add(resp.id)
+                results.append(resp)
+        return results
 
     async def list_posts(
         self,
