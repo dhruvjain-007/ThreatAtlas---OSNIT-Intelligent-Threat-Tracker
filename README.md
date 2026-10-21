@@ -1,4 +1,4 @@
-﻿# ThreatAtlas — OSINT Intelligent Threat Tracker
+# ThreatAtlas — OSINT Intelligent Threat Tracker
 
 A defensive OSINT intelligence monitoring platform that collects publicly available information, processes unstructured reports via NLP (spaCy NER + geocoding), scores threat/credibility, clusters related events, and visualises them on an interactive 3D CesiumJS globe — with live WebSocket feeds and temporal playback.
 
@@ -9,7 +9,7 @@ A defensive OSINT intelligence monitoring platform that collects publicly availa
 | Layer | Technology |
 |---|---|
 | **Backend API** | FastAPI (Python 3.10+), APScheduler, WebSockets |
-| **NLP / AI** | spaCy `en_core_web_lg`, geopy Nominatim geocoder |
+| **NLP / AI** | spaCy `en_core_web_sm`, geopy Nominatim geocoder |
 | **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, CesiumJS |
 | **Database** | MongoDB 7 (Geospatial 2dsphere indexes) |
 | **Cache / PubSub** | Redis 7 |
@@ -80,13 +80,11 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-#### 2d. Download the spaCy language model (one-time, ~750 MB)
+#### 2d. Download the spaCy language model (lightweight, ~12 MB)
 
 ```powershell
-python -m spacy download en_core_web_lg
+python -m spacy download en_core_web_sm
 ```
-
-> If disk space is limited, use `en_core_web_sm` instead and update the model name in `app/nlp/service.py`.
 
 #### 2e. Configure environment variables (optional)
 
@@ -225,7 +223,7 @@ pip install -r requirements.txt
 For spaCy model specifically:
 
 ```powershell
-python -m spacy download en_core_web_lg
+python -m spacy download en_core_web_sm
 ```
 
 ---

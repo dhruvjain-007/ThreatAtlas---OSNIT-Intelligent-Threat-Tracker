@@ -89,10 +89,12 @@ export interface RawPostListResponse {
 }
 
 export interface ProcessPendingResponse {
-  processed_count: number;
-  events_created: number;
-  events_merged: number;
-  errors: number;
+  status?: string;
+  processed_count?: number;
+  events_created?: number;
+  events_merged?: number;
+  events_ignored?: number;
+  errors?: number;
 }
 
 export interface EventFilters {

@@ -62,12 +62,21 @@ app = FastAPI(
 # Trust reverse proxy headers (Render, Cloudflare, ALB) for SSL/TLS and WebSocket (wss://) termination
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
+# Clean and normalize allowed origins to strip whitespace and trailing slashes
+raw_origins = settings.ALLOWED_ORIGINS
+allowed_origins: list[str] = []
+
+if isinstance(raw_origins, str):
+    allowed_origins = [orig.strip().rstrip("/") for orig in raw_origins.split(",") if orig.strip()]
+elif isinstance(raw_origins, (list, tuple, set)):
+    allowed_origins = [str(orig).strip().rstrip("/") for orig in raw_origins if str(orig).strip()]
+
 # Mount dynamic CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=allowed_origins,
     allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_credentials="*" not in settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

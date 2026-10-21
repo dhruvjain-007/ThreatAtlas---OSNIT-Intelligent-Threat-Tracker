@@ -158,13 +158,9 @@ def test_process_pending_intelligence_flow(mocker):
     )
 
     response = client.post("/api/v1/intelligence/process-pending")
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json()
-    assert data["processed_count"] == 1
-    assert data["events_created"] == 1
-    assert data["events_merged"] == 0
-    assert data["events_ignored"] == 0
-    assert data["errors"] == 0
+    assert data["status"] == "processing_started"
 
 
 def test_process_pending_irrelevant_post(mocker):
@@ -188,8 +184,8 @@ def test_process_pending_irrelevant_post(mocker):
     mock_update = mocker.patch("app.intelligence.service.RawPostRepository.update_status", AsyncMock(return_value=True))
 
     mock_nlp_result = MagicMock()
-    mocker.patch("app.api.v1.endpoints.intelligence.nlp_service.process_text", AsyncMock(return_value=mock_nlp_result))
-    mocker.patch("app.api.v1.endpoints.intelligence.is_post_relevant", return_value=False)
+    mocker.patch("app.intelligence.service.nlp_service.process_text", AsyncMock(return_value=mock_nlp_result))
+    mocker.patch("app.intelligence.service.is_post_relevant", return_value=False)
 
     mock_process_post = mocker.patch(
         "app.intelligence.service.IntelligenceService.process_post",
@@ -197,13 +193,9 @@ def test_process_pending_irrelevant_post(mocker):
     )
 
     response = client.post("/api/v1/intelligence/process-pending")
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json()
-    assert data["processed_count"] == 1
-    assert data["events_created"] == 0
-    assert data["events_merged"] == 0
-    assert data["events_ignored"] == 1
-    assert data["errors"] == 0
+    assert data["status"] == "processing_started"
 
     mock_update.assert_called_with(post_id, "ignored")
     mock_process_post.assert_not_called()

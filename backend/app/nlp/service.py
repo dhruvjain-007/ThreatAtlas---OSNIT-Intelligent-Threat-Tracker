@@ -10,8 +10,8 @@ class NLPService:
 
     def _load_model(self):
         if self.nlp is None:
-            print("Loading spaCy model en_core_web_sm...")
-            self.nlp = spacy.load("en_core_web_sm")
+            print("Loading spaCy model en_core_web_sm (disable parser, lemmatizer)...")
+            self.nlp = spacy.load("en_core_web_sm", disable=["parser", "lemmatizer"])
             
             # Setup EntityRuler
             ruler = self.nlp.add_pipe("entity_ruler", before="ner")

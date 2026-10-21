@@ -24,8 +24,8 @@ RUN if [ -f "/tmp/reqs/backend/requirements.txt" ]; then \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /app/requirements.txt
 
-# Download spaCy model during build step (en_core_web_lg)
-RUN python -m spacy download en_core_web_lg
+# Download spaCy model during build step (en_core_web_sm)
+RUN python -m spacy download en_core_web_sm
 
 # Copy application source code into /app cleanly whether context is root or backend
 COPY . /tmp/repo/

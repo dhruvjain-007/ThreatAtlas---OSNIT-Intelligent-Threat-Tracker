@@ -17,6 +17,9 @@ class RealtimeWebSocketService {
   private pingInterval: any = null;
   private reconnectTimeout: any = null;
   private isExplicitlyClosed = false;
+  private reconnectAttempts = 0;
+  private readonly minReconnectDelayMs = 2000; // 2s initial delay
+  private readonly maxReconnectDelayMs = 30000; // 30s ceiling
 
   private getWebSocketUrl(): string {
     const wsEnv = (import.meta.env.VITE_WS_URL || '').trim();
@@ -71,6 +74,7 @@ class RealtimeWebSocketService {
 
       this.socket.onopen = () => {
         console.log('[WebSocket] Real-time event stream connected.');
+        this.reconnectAttempts = 0;
         this.notifyStatus(true);
         this.startHeartbeat();
       };
@@ -110,6 +114,7 @@ class RealtimeWebSocketService {
 
   public disconnect(): void {
     this.isExplicitlyClosed = true;
+    this.reconnectAttempts = 0;
     this.stopHeartbeat();
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -162,12 +167,21 @@ class RealtimeWebSocketService {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimeout) return;
+    if (this.reconnectTimeout || this.isExplicitlyClosed) return;
+
+    // Exponential backoff: min(maxDelay, minDelay * 2^attempts) e.g. 2s, 4s, 8s, 16s, up to 30s
+    const delay = Math.min(
+      this.maxReconnectDelayMs,
+      this.minReconnectDelayMs * Math.pow(2, this.reconnectAttempts)
+    );
+    this.reconnectAttempts += 1;
+
+    console.log(`[WebSocket] Scheduling reconnect attempt #${this.reconnectAttempts} in ${delay}ms...`);
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;
       console.log('[WebSocket] Reconnecting to real-time event stream...');
       this.connect();
-    }, 5000);
+    }, delay);
   }
 }
 

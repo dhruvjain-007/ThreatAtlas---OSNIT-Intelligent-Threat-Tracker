@@ -212,18 +212,19 @@ class IntelligenceService:
             }
 
 
-    async def process_pending_batch(self, db, limit: int = 100) -> dict:
+    async def process_pending_batch(self, db, limit: int = 100, batch_size: int = 5) -> dict:
         """
-        Executes the end-to-end processing pipeline on pending RawPosts.
+        Executes the end-to-end processing pipeline on pending RawPosts in small chunks (default batch_size=5).
+        Runs explicit garbage collection after each chunk to maintain a low RAM footprint on 512MB tiers.
         Returns a dict of statistics.
         """
+        import gc
         from app.db.repositories.raw_post import RawPostRepository
         from app.db.repositories.event import EventRepository
 
         raw_post_repo = RawPostRepository(db)
         event_repo = EventRepository(db)
 
-        pending_posts = await raw_post_repo.list_pending(limit=limit)
         stats = {
             "processed_count": 0,
             "events_created": 0,
@@ -232,37 +233,63 @@ class IntelligenceService:
             "errors": 0,
         }
 
-        if not pending_posts:
-            return stats
+        total_processed = 0
+        seen_post_ids = set()
 
-        for post in pending_posts:
+        while total_processed < limit:
+            chunk_limit = min(batch_size, limit - total_processed)
             try:
-                nlp_result = await nlp_service.process_text(post.text)
-
-                if not is_post_relevant(nlp_result):
-                    logger.info("RawPost %s deemed irrelevant. Ignoring.", post.id)
-                    await raw_post_repo.update_status(post.id, "ignored")
-                    stats["events_ignored"] += 1
-                    stats["processed_count"] += 1
-                    continue
-
-                result = await self.process_post(
-                    raw_post=post,
-                    event_repo=event_repo,
-                    nlp_result=nlp_result,
-                    raw_post_repo=raw_post_repo,
-                )
-
-                stats["processed_count"] += 1
-                if result.get("action") == "created":
-                    stats["events_created"] += 1
-                elif result.get("action") == "merged":
-                    stats["events_merged"] += 1
-
+                pending_posts = await raw_post_repo.list_pending(limit=chunk_limit)
             except Exception as exc:
-                logger.error("Error processing RawPost %s: %s", post.id, exc, exc_info=True)
-                stats["errors"] += 1
-                await raw_post_repo.update_status(post.id, "failed")
+                logger.error("Failed to fetch pending raw posts: %s", exc, exc_info=True)
+                break
+
+            if not pending_posts:
+                break
+
+            unprocessed_posts = [p for p in pending_posts if p.id not in seen_post_ids]
+            if not unprocessed_posts:
+                break
+
+            for post in unprocessed_posts:
+                seen_post_ids.add(post.id)
+                try:
+                    nlp_result = await nlp_service.process_text(post.text)
+
+                    if not is_post_relevant(nlp_result):
+                        logger.info("RawPost %s deemed irrelevant. Ignoring.", post.id)
+                        await raw_post_repo.update_status(post.id, "ignored")
+                        stats["events_ignored"] += 1
+                        stats["processed_count"] += 1
+                        total_processed += 1
+                        continue
+
+                    result = await self.process_post(
+                        raw_post=post,
+                        event_repo=event_repo,
+                        nlp_result=nlp_result,
+                        raw_post_repo=raw_post_repo,
+                    )
+
+                    stats["processed_count"] += 1
+                    total_processed += 1
+                    if result.get("action") == "created":
+                        stats["events_created"] += 1
+                    elif result.get("action") == "merged":
+                        stats["events_merged"] += 1
+
+                except Exception as exc:
+                    logger.error("Error processing RawPost %s: %s", getattr(post, 'id', 'unknown'), exc, exc_info=True)
+                    stats["errors"] += 1
+                    stats["processed_count"] += 1
+                    total_processed += 1
+                    try:
+                        await raw_post_repo.update_status(post.id, "failed")
+                    except Exception as status_err:
+                        logger.error("Failed to update status to failed for post %s: %s", getattr(post, 'id', 'unknown'), status_err)
+
+            # Explicit garbage collection after processing each batch chunk
+            gc.collect()
 
         return stats
 

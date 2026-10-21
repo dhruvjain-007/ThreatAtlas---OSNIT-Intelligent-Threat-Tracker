@@ -44,7 +44,7 @@ class InMemoryEventRepo:
         self.events = []
         self.counter = 1
 
-    async def list_events(self, limit=50):
+    async def list_events(self, limit=50, *args, **kwargs):
         return self.events[:limit]
 
     async def create(self, event_create):
@@ -142,7 +142,7 @@ async def test_integration_clustering_pipeline(mock_semantic_model, mock_geocode
         id="post_3",
         source="RSS",
         source_specific_id="hash3",
-        text="A massive explosion was reported in Lyon.",
+        text="A massive explosion was reported in Lyon, France.",
         url="",
         original_timestamp=datetime(2026, 9, 17, 10, 45, 0, tzinfo=timezone.utc),
         processing_status="pending",

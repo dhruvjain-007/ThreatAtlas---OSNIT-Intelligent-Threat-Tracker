@@ -48,12 +48,12 @@ class Settings(BaseSettings):
                 try:
                     parsed = json.loads(v_str)
                     if isinstance(parsed, list):
-                        return [str(origin).strip() for origin in parsed if str(origin).strip()]
+                        return [str(origin).strip().rstrip("/") for origin in parsed if str(origin).strip()]
                 except Exception:
                     pass
-            return [origin.strip() for origin in v_str.split(",") if origin.strip()]
+            return [origin.strip().rstrip("/") for origin in v_str.split(",") if origin.strip()]
         elif isinstance(v, list):
-            return [str(origin).strip() for origin in v if str(origin).strip()]
+            return [str(origin).strip().rstrip("/") for origin in v if str(origin).strip()]
         return []
 
     @model_validator(mode="after")
