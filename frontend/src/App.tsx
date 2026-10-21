@@ -19,7 +19,7 @@ export const App: React.FC = () => {
   const [playbackTime, setPlaybackTime] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [liveToast, setLiveToast] = useState<{ message: string; threatLevel: string } | null>(null);
+  const [liveToast, setLiveToast] = useState<{ message: string; threatLevel: string; event?: Event } | null>(null);
   const [globalMetrics, setGlobalMetrics] = useState<EventGlobalMetrics>({
     total: 0,
     high: 0,
