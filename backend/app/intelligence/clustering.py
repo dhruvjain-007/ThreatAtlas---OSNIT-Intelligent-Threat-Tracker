@@ -20,6 +20,13 @@ def get_semantic_model() -> Optional[Any]:
     global _semantic_model, _semantic_model_initialized
     if not _semantic_model_initialized:
         _semantic_model_initialized = True
+
+        from app.intelligence.config import ENABLE_SEMANTIC_EMBEDDINGS
+        if not ENABLE_SEMANTIC_EMBEDDINGS:
+            logger.info("Semantic embeddings disabled (ENABLE_SEMANTIC_EMBEDDINGS=False). Relying on high-speed Jaccard and spatio-temporal clustering (<5MB RAM).")
+            _semantic_model = None
+            return None
+
         try:
             from sentence_transformers import SentenceTransformer
             logger.info("Loading semantic embedding model (sentence-transformers/all-MiniLM-L6-v2)...")

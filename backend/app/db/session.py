@@ -22,9 +22,22 @@ def get_database() -> AsyncIOMotorDatabase:
     return db_session.db
 
 
+import re
+
+def mask_mongodb_uri(uri: str) -> str:
+    """
+    Sanitize MongoDB URI before logging by replacing credentials with '****'.
+    Example: mongodb+srv://user:pass@cluster.mongodb.net/... -> mongodb+srv://user:****@cluster.mongodb.net/...
+    """
+    if not uri:
+        return ""
+    return re.sub(r":([^@/]+)@", r":****@", uri)
+
+
 async def connect_to_mongo() -> None:
     """Initialize MongoDB connection pool on startup."""
-    logger.info("Connecting to MongoDB at %s...", settings.MONGO_URI)
+    masked_uri = mask_mongodb_uri(settings.MONGO_URI)
+    logger.info("Connecting to MongoDB at %s...", masked_uri)
     db_session.client = AsyncIOMotorClient(
         settings.MONGO_URI,
         uuidRepresentation="standard",

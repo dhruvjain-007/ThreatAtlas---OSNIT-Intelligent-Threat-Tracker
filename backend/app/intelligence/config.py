@@ -69,3 +69,8 @@ def get_threat_level(score: float) -> str:
 MAX_SPATIAL_DISTANCE_KM: float = 50.0
 MAX_TEMPORAL_WINDOW_SECONDS: float = 86400.0  # 24 hours
 MIN_CLUSTER_MATCH_SCORE: float = 0.55
+
+# Memory Optimization: Semantic embedding model (sentence-transformers/PyTorch) takes >400MB RAM.
+# Disabled by default for 512MB RAM tier (Render), falling back to high-speed Jaccard (<5MB RAM).
+import os
+ENABLE_SEMANTIC_EMBEDDINGS: bool = os.getenv("ENABLE_SEMANTIC_EMBEDDINGS", "false").lower() in ("true", "1", "yes")

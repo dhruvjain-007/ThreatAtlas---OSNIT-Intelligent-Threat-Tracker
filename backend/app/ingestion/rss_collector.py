@@ -59,7 +59,8 @@ class RSSCollector:
     async def fetch_feed_entries(self, feed_url: str) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Fetch raw XML content via httpx and parse with feedparser."""
         headers = {
-            "User-Agent": "OSINT-Threat-Intelligence-Platform/0.1.0 (Defensive Monitoring)",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "application/rss+xml, application/xml, text/xml, application/atom+xml, text/html, */*",
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:

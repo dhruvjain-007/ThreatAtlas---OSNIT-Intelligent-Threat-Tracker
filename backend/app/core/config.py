@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # SQLite GeoNames Cache
     GEONAMES_DB_PATH: str = "data/geonames.sqlite"
 
+    # Semantic Embeddings (Disabled by default to keep container memory < 300MB on 512MB RAM tier)
+    ENABLE_SEMANTIC_EMBEDDINGS: bool = False
+
     @field_validator("ALLOWED_ORIGINS", mode="after")
     @classmethod
     def assemble_cors_origins(cls, v: Union[List[str], str]) -> List[str]:

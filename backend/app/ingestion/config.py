@@ -30,7 +30,7 @@ DEFAULT_RSS_FEEDS: List[RSSFeedConfig] = [
     ),
     RSSFeedConfig(
         name="Reuters World",
-        url="https://www.reutersagency.com/feed/?best-topics=world-news",
+        url="https://feeds.bbci.co.uk/news/world/rss.xml",
     ),
     RSSFeedConfig(
         name="ReliefWeb Crisis Reports",

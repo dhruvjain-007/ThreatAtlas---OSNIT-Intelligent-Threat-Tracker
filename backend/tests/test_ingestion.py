@@ -191,3 +191,32 @@ def test_api_ingestion_endpoint():
         data = res.json()
         assert "feeds_attempted" in data
         assert "entries_processed" in data
+
+
+@pytest.mark.asyncio
+async def test_fetch_feed_entries_headers(mocker):
+    """Verify that RSSCollector sends standard browser headers to prevent 403 and 406 errors."""
+    collector = RSSCollector()
+
+    captured_headers = {}
+    mock_resp = MagicMock()
+    mock_resp.text = "<rss><channel><title>Test</title></channel></rss>"
+    mock_resp.raise_for_status = MagicMock()
+
+    async def mock_get(url, headers=None, **kwargs):
+        nonlocal captured_headers
+        captured_headers = headers or {}
+        return mock_resp
+
+    mock_client = MagicMock()
+    mock_client.get = AsyncMock(side_effect=mock_get)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    mocker.patch("httpx.AsyncClient", return_value=mock_client)
+
+    meta, entries = await collector.fetch_feed_entries("https://example.com/rss.xml")
+    assert "User-Agent" in captured_headers
+    assert "Chrome/122.0.0.0" in captured_headers["User-Agent"]
+    assert "application/rss+xml" in captured_headers["Accept"]
+
