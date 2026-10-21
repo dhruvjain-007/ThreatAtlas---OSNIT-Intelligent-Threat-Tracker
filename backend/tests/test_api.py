@@ -160,7 +160,7 @@ def test_process_pending_intelligence_flow(mocker):
     response = client.post("/api/v1/intelligence/process-pending")
     assert response.status_code == 202
     data = response.json()
-    assert data["status"] == "processing_started"
+    assert data["status"] in ("processing_started", "ingestion_and_processing_started")
 
 
 def test_process_pending_irrelevant_post(mocker):
@@ -192,13 +192,61 @@ def test_process_pending_irrelevant_post(mocker):
         AsyncMock()
     )
 
-    response = client.post("/api/v1/intelligence/process-pending")
+    response = client.post("/api/v1/intelligence/process-pending?ingest=false")
     assert response.status_code == 202
     data = response.json()
     assert data["status"] == "processing_started"
 
     mock_update.assert_called_with(post_id, "ignored")
     mock_process_post.assert_not_called()
+
+
+def test_ingest_and_process_endpoint(mocker):
+    """Test POST /api/v1/intelligence/ingest-and-process returns 202."""
+    mocker.patch("app.api.v1.endpoints.intelligence.get_database", return_value=MagicMock())
+    response = client.post("/api/v1/intelligence/ingest-and-process")
+    assert response.status_code == 202
+    data = response.json()
+    assert data["status"] == "ingestion_and_processing_started"
+
+
+def test_dispatch_test_threat_event(mocker):
+    """Test POST /api/v1/intelligence/test-event dispatches high-threat test event."""
+    fake_id = str(ObjectId())
+    now = utc_now()
+    mock_event = EventResponse(
+        id=fake_id,
+        title="Air defense interception reported near Odesa",
+        summary="Interception reported near Odesa.",
+        raw_post_ids=[],
+        source_ids=["liveuamap", "reuters"],
+        event_type="conflict",
+        entities={"locations": ["Odesa"], "organizations": ["Air Force"], "equipment": ["Air Defense"]},
+        location_name="Odesa, Ukraine",
+        location=GeoJSONPoint(coordinates=[30.7326, 46.4825]),
+        country_code="UA",
+        event_timestamp=now,
+        threat_score=82.0,
+        threat_level="High",
+        credibility_score=88.0,
+        corroboration_count=2,
+        created_at=now,
+        updated_at=now,
+    )
+
+    mocker.patch("app.api.v1.endpoints.intelligence.get_database", return_value=MagicMock())
+    mocker.patch("app.api.v1.endpoints.intelligence.EventRepository.create", AsyncMock(return_value=mock_event))
+    mock_publish = mocker.patch("app.api.v1.endpoints.intelligence.publish_event", AsyncMock())
+
+    response = client.post("/api/v1/intelligence/test-event")
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "Air defense interception reported near Odesa"
+    assert data["threat_score"] == 82.0
+    assert data["threat_level"] == "High"
+    assert data["location"]["coordinates"] == [30.7326, 46.4825]
+    mock_publish.assert_called_once()
+
 
 
 

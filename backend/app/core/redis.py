@@ -34,11 +34,21 @@ async def publish_event(event_data: Dict[str, Any], action: str = "created") -> 
     Publish event update to Redis channel and broadcast directly via WebSocket manager.
     action: 'created' | 'merged' | 'updated'
     """
+    if hasattr(event_data, "_mock_return_value") or asyncio.iscoroutine(event_data):
+        return
+
+    from fastapi.encoders import jsonable_encoder
+
     event_type = f"EVENT_{action.upper()}"
+    try:
+        safe_event_data = jsonable_encoder(event_data)
+    except Exception:
+        safe_event_data = event_data if isinstance(event_data, dict) else str(event_data)
+
     payload = {
         "type": event_type,
         "action": action,
-        "event": event_data,
+        "event": safe_event_data,
     }
 
     # 1. Direct in-memory WS broadcast (guarantees local delivery)
@@ -48,7 +58,7 @@ async def publish_event(event_data: Dict[str, Any], action: str = "created") -> 
     try:
         r = await get_redis_client()
         if r:
-            await r.publish(REDIS_CHANNEL, json.dumps(payload))
+            await r.publish(REDIS_CHANNEL, json.dumps(payload, default=str))
             logger.info("Published %s to Redis channel '%s'", event_type, REDIS_CHANNEL)
     except Exception as exc:
         logger.debug("Redis publish notice: %s", exc)

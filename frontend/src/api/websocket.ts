@@ -82,10 +82,16 @@ class RealtimeWebSocketService {
       this.socket.onmessage = (msg: MessageEvent) => {
         try {
           const data: WebSocketMessage = JSON.parse(msg.data);
-          if (data.type === 'EVENT_CREATED' || data.type === 'EVENT_UPDATED' || data.type === 'EVENT_MERGED') {
-            if (data.event) {
-              const action = data.action || (data.type === 'EVENT_CREATED' ? 'created' : 'updated');
-              this.notifyEvent(data.event, action);
+          const type = (data.type || '').toUpperCase();
+          if (type.startsWith('EVENT_') || data.event) {
+            const rawEvent = data.event;
+            if (rawEvent) {
+              const normalizedEvent: Event = {
+                ...rawEvent,
+                id: String(rawEvent.id || (rawEvent as any)._id || ''),
+              };
+              const action = data.action || (type === 'EVENT_CREATED' ? 'created' : 'updated');
+              this.notifyEvent(normalizedEvent, action);
             }
           }
         } catch (err) {

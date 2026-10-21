@@ -128,11 +128,15 @@ export const App: React.FC = () => {
 
       // Trigger Live Toast Alert
       const toastMsg = `Live Event ${action.toUpperCase()}: ${incomingEvent.title}`;
-      setLiveToast({ message: toastMsg, threatLevel: incomingEvent.threat_level });
+      setLiveToast({
+        message: toastMsg,
+        threatLevel: incomingEvent.threat_level,
+        event: incomingEvent,
+      });
 
       setTimeout(() => {
         setLiveToast(null);
-      }, 6000);
+      }, 7000);
     });
 
     return () => {
@@ -150,6 +154,7 @@ export const App: React.FC = () => {
           loadEvents();
           loadMetrics();
         }}
+        onSelectEvent={(evt) => setSelectedEvent(evt)}
       />
 
       {/* Main Viewport */}
@@ -170,10 +175,23 @@ export const App: React.FC = () => {
         <main className="flex-1 relative">
           {/* Real-Time Toast Banner Notification */}
           {liveToast && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-950/70 border border-blue-500/40 text-blue-100 px-5 py-3 rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.2)] backdrop-blur-md flex items-center gap-3 font-mono text-xs animate-feed-in transition-all">
-              <Zap className="w-4 h-4 text-blue-400 animate-soc-pulse shrink-0" />
-              <span>{liveToast.message}</span>
-              <button onClick={() => setLiveToast(null)} className="text-blue-400 hover:text-white ml-2 cursor-pointer focus:ring-2 focus:ring-blue-500 rounded outline-none">
+            <div
+              onClick={() => {
+                if (liveToast.event) setSelectedEvent(liveToast.event);
+              }}
+              title="Click to view event details and focus camera"
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-blue-950/80 hover:bg-blue-900/80 border border-blue-500/50 text-blue-100 px-5 py-3 rounded-xl shadow-[0_0_25px_rgba(59,130,246,0.3)] backdrop-blur-md flex items-center gap-3 font-mono text-xs animate-feed-in transition-all cursor-pointer group"
+            >
+              <Zap className="w-4 h-4 text-blue-400 group-hover:text-cyan-300 animate-soc-pulse shrink-0" />
+              <span className="font-medium">{liveToast.message}</span>
+              <span className="text-[10px] text-blue-300/70 underline underline-offset-2 ml-1">Focus</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLiveToast(null);
+                }}
+                className="text-blue-400 hover:text-white ml-2 cursor-pointer focus:ring-2 focus:ring-blue-500 rounded outline-none p-0.5"
+              >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>

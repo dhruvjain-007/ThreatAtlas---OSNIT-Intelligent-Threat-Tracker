@@ -1,22 +1,26 @@
 import React, { useState } from 'react';
-import { Shield, RefreshCw, AlertTriangle, Layers, Bell } from 'lucide-react';
-import { processPendingPosts } from '../api/client';
-import type { ProcessPendingResponse, EventGlobalMetrics } from '../types';
+import { Shield, RefreshCw, AlertTriangle, Layers, Bell, Zap } from 'lucide-react';
+import { processPendingPosts, dispatchTestEvent } from '../api/client';
+import type { ProcessPendingResponse, EventGlobalMetrics, Event } from '../types';
 import { AlertsModal } from './AlertsModal';
 
 interface HeaderProps {
   isOnline: boolean;
   globalMetrics: EventGlobalMetrics;
   onRefresh: () => void;
+  onSelectEvent?: (event: Event) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   isOnline,
   globalMetrics,
   onRefresh,
+  onSelectEvent,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDispatchingTest, setIsDispatchingTest] = useState(false);
   const [processResult, setProcessResult] = useState<ProcessPendingResponse | null>(null);
+  const [testNotification, setTestNotification] = useState<string | null>(null);
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
 
   const handleProcessPending = async () => {
@@ -30,6 +34,24 @@ export const Header: React.FC<HeaderProps> = ({
       console.error('Failed to process pending posts:', err);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleTriggerTestEvent = async () => {
+    setIsDispatchingTest(true);
+    setTestNotification(null);
+    try {
+      const testEvt = await dispatchTestEvent();
+      setTestNotification(`Dispatched "${testEvt.title}"`);
+      if (onSelectEvent) {
+        onSelectEvent(testEvt);
+      }
+      onRefresh();
+      setTimeout(() => setTestNotification(null), 5000);
+    } catch (err) {
+      console.error('Failed to dispatch test threat event:', err);
+    } finally {
+      setIsDispatchingTest(false);
     }
   };
 
@@ -82,29 +104,47 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <button
           onClick={() => setIsAlertsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900/50 hover:bg-slate-800/60 text-slate-300 font-medium text-xs rounded-lg border border-slate-700/60 transition-all cursor-pointer backdrop-blur-sm hover:shadow-[0_0_12px_rgba(148,163,184,0.1)] focus:ring-2 focus:ring-slate-600 outline-none"
+          className="flex items-center gap-2 px-3.5 py-2 bg-slate-900/50 hover:bg-slate-800/60 text-slate-300 font-medium text-xs rounded-lg border border-slate-700/60 transition-all cursor-pointer backdrop-blur-sm hover:shadow-[0_0_12px_rgba(148,163,184,0.1)] focus:ring-2 focus:ring-slate-600 outline-none"
         >
           <Bell className="w-3.5 h-3.5" />
           <span>Alerts</span>
         </button>
 
         <button
-          onClick={handleProcessPending}
-          disabled={isProcessing}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600/80 hover:bg-blue-500/90 disabled:bg-slate-800/50 disabled:text-slate-500/50 text-white font-medium text-xs rounded-lg border border-blue-400/30 transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] cursor-pointer backdrop-blur-md hover:-translate-y-0.5 focus:ring-2 focus:ring-blue-400 outline-none"
+          onClick={handleTriggerTestEvent}
+          disabled={isDispatchingTest}
+          title="Dispatch a real-time high-threat incident to test instant WebSocket pin drops on the Cesium globe"
+          className="flex items-center gap-2 px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 disabled:bg-slate-800/50 text-amber-300 hover:text-amber-200 font-medium text-xs rounded-lg border border-amber-500/40 transition-all shadow-[0_0_12px_rgba(245,158,11,0.15)] hover:shadow-[0_0_16px_rgba(245,158,11,0.3)] cursor-pointer backdrop-blur-md hover:-translate-y-0.5 focus:ring-2 focus:ring-amber-400 outline-none"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
-          <span>{isProcessing ? 'Processing Pipeline...' : 'Process Pending OSINT'}</span>
+          <Zap className={`w-3.5 h-3.5 text-amber-400 ${isDispatchingTest ? 'animate-bounce' : ''}`} />
+          <span>{isDispatchingTest ? 'Dispatching...' : 'Test Threat'}</span>
         </button>
 
-        {processResult && (
+        <button
+          onClick={handleProcessPending}
+          disabled={isProcessing}
+          title="Fetch latest RSS feeds and run end-to-end NLP & intelligence clustering"
+          className="flex items-center gap-2 px-3.5 py-2 bg-blue-600/80 hover:bg-blue-500/90 disabled:bg-slate-800/50 disabled:text-slate-500/50 text-white font-medium text-xs rounded-lg border border-blue-400/30 transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] cursor-pointer backdrop-blur-md hover:-translate-y-0.5 focus:ring-2 focus:ring-blue-400 outline-none"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
+          <span>{isProcessing ? 'Syncing Feeds...' : 'Sync & Ingest OSINT'}</span>
+        </button>
+
+        {testNotification && (
+          <div className="hidden xl:flex items-center gap-1.5 text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-700/50 px-3 py-1.5 rounded-md backdrop-blur-sm shadow-[0_0_10px_rgba(245,158,11,0.15)] animate-feed-in">
+            <Zap className="w-3 h-3 text-amber-400" />
+            <span>{testNotification}</span>
+          </div>
+        )}
+
+        {processResult && !testNotification && (
           <div className="hidden lg:block text-[10px] font-mono text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 px-3 py-1.5 rounded-md backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.1)] animate-feed-in">
-            {processResult.status === 'processing_started'
-              ? 'Pipeline processing running in background...'
-              : `+${processResult.processed_count ?? 0} Processed (${processResult.events_created ?? 0} Created, ${processResult.events_merged ?? 0} Merged)`}
+            {processResult.status === 'ingestion_and_processing_started' || processResult.status === 'processing_started'
+              ? 'Feed ingestion & intelligence pipeline running...'
+              : `+${processResult.processed_count ?? 0} Processed (${processResult.events_created ?? 0} Created)`}
           </div>
         )}
       </div>

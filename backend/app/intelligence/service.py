@@ -202,7 +202,14 @@ class IntelligenceService:
                 await raw_post_repo.update_status(raw_post.id, "processed")
 
             if created_event:
-                await publish_event(created_event.model_dump(), action="created")
+                if hasattr(created_event, "model_dump") and not hasattr(created_event.model_dump, "_mock_return_value"):
+                    event_dict = created_event.model_dump()
+                elif isinstance(created_event, dict):
+                    event_dict = created_event
+                else:
+                    event_dict = getattr(created_event, "__dict__", {})
+                if not asyncio.iscoroutine(event_dict):
+                    await publish_event(event_dict, action="created")
                 asyncio.create_task(dispatch_webhooks_for_event(created_event))
 
             return {

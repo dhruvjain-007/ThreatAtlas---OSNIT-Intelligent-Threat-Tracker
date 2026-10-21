@@ -123,6 +123,16 @@ export const processPendingPosts = async (): Promise<ProcessPendingResponse> => 
   return response.data;
 };
 
+export const ingestAndProcess = async (): Promise<ProcessPendingResponse> => {
+  const response = await apiClient.post<ProcessPendingResponse>('/intelligence/ingest-and-process');
+  return response.data;
+};
+
+export const dispatchTestEvent = async (): Promise<Event> => {
+  const response = await apiClient.post<Event>('/intelligence/test-event');
+  return response.data;
+};
+
 export const checkHealth = async (): Promise<boolean> => {
   try {
     const response = await apiClient.get('/health', {
