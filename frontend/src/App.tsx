@@ -15,7 +15,6 @@ export const App: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]); // Normal dashboard events (default limit)
   const [playbackEvents, setPlaybackEvents] = useState<Event[]>([]); // Bounded large dataset for playback
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [showHeatmap, setShowHeatmap] = useState<boolean>(false);
   const [playbackTime, setPlaybackTime] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -174,8 +173,6 @@ export const App: React.FC = () => {
           selectedEvent={selectedEvent}
           onSelectEvent={setSelectedEvent}
           globalMetrics={globalMetrics}
-          showHeatmap={showHeatmap}
-          onHeatmapToggle={() => setShowHeatmap((prev) => !prev)}
         />
 
         {/* Center 3D Globe Viewer */}
@@ -234,7 +231,6 @@ export const App: React.FC = () => {
             playbackTime={playbackTime}
             selectedEvent={selectedEvent}
             onSelectEvent={setSelectedEvent}
-            showHeatmap={showHeatmap}
           />
 
           {/* Immersive Map Vignette Overlay */}
