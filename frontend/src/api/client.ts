@@ -123,8 +123,14 @@ export const processPendingPosts = async (): Promise<ProcessPendingResponse> => 
   return response.data;
 };
 
-export const reprocessAll = async (): Promise<{ status: string; unlocked_count: number }> => {
-  const response = await apiClient.post<{ status: string; unlocked_count: number }>('/intelligence/reprocess-all');
+export const reprocessAll = async (): Promise<{ status: string; unlocked_count: number; deleted_events?: number; deleted_posts?: number }> => {
+  const response = await apiClient.post<{ status: string; unlocked_count: number; deleted_events?: number; deleted_posts?: number }>('/intelligence/reprocess-all');
+  return response.data;
+};
+
+export const cleanupStaleThreats = async (retentionHours?: number): Promise<{ status: string; deleted_events: number; deleted_posts: number }> => {
+  const params = retentionHours !== undefined ? { retention_hours: retentionHours } : {};
+  const response = await apiClient.post<{ status: string; deleted_events: number; deleted_posts: number }>('/intelligence/cleanup-stale', null, { params });
   return response.data;
 };
 

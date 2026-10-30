@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # SQLite GeoNames Cache
     GEONAMES_DB_PATH: str = "data/geonames.sqlite"
 
+    # Threat Retention & Stale Pruning Settings (Hours before a threat event expires)
+    THREAT_RETENTION_HOURS: int = 48
+
     # Semantic Embeddings (Disabled by default to keep container memory < 300MB on 512MB RAM tier)
     ENABLE_SEMANTIC_EMBEDDINGS: bool = False
 

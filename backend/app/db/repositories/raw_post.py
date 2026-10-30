@@ -127,6 +127,11 @@ class RawPostRepository:
         )
         return result.modified_count > 0
 
+    async def delete_many(self, filter_query: Dict[str, Any]) -> int:
+        """Delete raw posts matching a filter query."""
+        result = await self.collection.delete_many(filter_query)
+        return result.deleted_count
+
     @staticmethod
     def _to_response(doc: dict) -> RawPostResponse:
         """Convert MongoDB document dict to RawPostResponse Pydantic model."""

@@ -228,6 +228,22 @@ def test_reprocess_all_endpoint(mocker):
     mock_db.raw_posts.update_many.assert_called_once()
 
 
+def test_cleanup_stale_endpoint(mocker):
+    """Test POST /api/v1/intelligence/cleanup-stale deletes stale threats and returns stats."""
+    mocker.patch(
+        "app.api.v1.endpoints.intelligence.cleanup_stale_threats",
+        AsyncMock(return_value={"deleted_events": 15, "deleted_posts": 30}),
+    )
+    mocker.patch("app.api.v1.endpoints.intelligence.get_database", return_value=MagicMock())
+
+    response = client.post("/api/v1/intelligence/cleanup-stale")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "stale_threats_cleaned"
+    assert data["deleted_events"] == 15
+    assert data["deleted_posts"] == 30
+
+
 def test_dispatch_test_threat_event(mocker):
     """Test POST /api/v1/intelligence/test-event dispatches high-threat test event."""
     fake_id = str(ObjectId())

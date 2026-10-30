@@ -47,6 +47,17 @@ class EventRepository:
         )
         return self._to_response(result) if result else None
 
+    async def delete_by_id(self, event_id: str) -> bool:
+        """Delete an Event by its ObjectId or string _id."""
+        query = {"$or": [{"_id": ObjectId(event_id)}, {"_id": event_id}]} if ObjectId.is_valid(event_id) else {"_id": event_id}
+        result = await self.collection.delete_one(query)
+        return result.deleted_count > 0
+
+    async def delete_many(self, filter_query: Dict[str, Any]) -> int:
+        """Delete events matching a filter query."""
+        result = await self.collection.delete_many(filter_query)
+        return result.deleted_count
+
     def _build_query(
         self,
         threat_level: Optional[str] = None,

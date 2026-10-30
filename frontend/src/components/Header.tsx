@@ -27,13 +27,15 @@ export const Header: React.FC<HeaderProps> = ({
     setIsProcessing(true);
     setProcessResult(null);
     try {
-      // 1. Unlock all previously filtered/ignored articles back to pending
+      // 1. Purge stale/non-existent threats and unlock articles back to pending
       const reprocessRes = await reprocessAll();
       // 2. Trigger feed ingestion & intelligence batch processing
       const res = await processPendingPosts();
       setProcessResult({
         ...res,
         unlocked_count: reprocessRes.unlocked_count,
+        deleted_events: reprocessRes.deleted_events ?? res.deleted_events,
+        deleted_posts: reprocessRes.deleted_posts ?? res.deleted_posts,
       });
       onRefresh();
     } catch (err) {
@@ -51,6 +53,8 @@ export const Header: React.FC<HeaderProps> = ({
       setProcessResult({
         status: 'reprocessing_started',
         unlocked_count: res.unlocked_count,
+        deleted_events: res.deleted_events,
+        deleted_posts: res.deleted_posts,
       });
       onRefresh();
     } catch (err) {
@@ -175,11 +179,13 @@ export const Header: React.FC<HeaderProps> = ({
 
         {processResult && !testNotification && (
           <div className="hidden lg:block text-[10px] font-mono text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 px-3 py-1.5 rounded-md backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.1)] animate-feed-in">
-            {processResult.unlocked_count !== undefined
-              ? `Unlocked ${processResult.unlocked_count} articles — intelligence pipeline running...`
-              : processResult.status === 'ingestion_and_processing_started' || processResult.status === 'processing_started' || processResult.status === 'reprocessing_started'
-                ? 'Feed ingestion & intelligence pipeline running...'
-                : `+${processResult.processed_count ?? 0} Processed (${processResult.events_created ?? 0} Created)`}
+            {processResult.deleted_events && processResult.deleted_events > 0
+              ? `Pruned ${processResult.deleted_events} stale threats (${processResult.unlocked_count ?? 0} unlocked) — running...`
+              : processResult.unlocked_count !== undefined
+                ? `Unlocked ${processResult.unlocked_count} articles — intelligence pipeline running...`
+                : processResult.status === 'ingestion_and_processing_started' || processResult.status === 'processing_started' || processResult.status === 'reprocessing_started'
+                  ? 'Feed ingestion & intelligence pipeline running...'
+                  : `+${processResult.processed_count ?? 0} Processed (${processResult.events_created ?? 0} Created)`}
           </div>
         )}
       </div>

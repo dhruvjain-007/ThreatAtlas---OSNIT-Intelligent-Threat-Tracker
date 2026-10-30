@@ -91,6 +91,8 @@ export interface RawPostListResponse {
 export interface ProcessPendingResponse {
   status?: string;
   unlocked_count?: number;
+  deleted_events?: number;
+  deleted_posts?: number;
   processed_count?: number;
   passed_relevance?: number;
   geocoded_count?: number;

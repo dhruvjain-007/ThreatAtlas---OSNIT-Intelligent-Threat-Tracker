@@ -9,6 +9,10 @@ from app.schemas.event import EventCreate, EventResponse
 from app.schemas.common import GeoJSONPoint, utc_now
 from app.core.redis import publish_event
 
+from datetime import datetime, timezone, timedelta
+from bson import ObjectId
+from app.core.config import settings
+
 logger = logging.getLogger("threat_atlas.api.intelligence")
 
 router = APIRouter()
@@ -22,12 +26,114 @@ class ProcessPendingResponse(BaseModel):
     events_created: Optional[int] = Field(default=None, description="Number of new events created")
     events_merged: Optional[int] = Field(default=None, description="Number of posts merged into existing events")
     events_ignored: Optional[int] = Field(default=None, description="Number of posts ignored because they were not threat-relevant")
+    deleted_events: Optional[int] = Field(default=None, description="Number of stale threats deleted from database")
+    deleted_posts: Optional[int] = Field(default=None, description="Number of stale raw posts deleted from database")
     errors: Optional[int] = Field(default=None, description="Number of posts that failed during processing")
 
 
 class ReprocessAllResponse(BaseModel):
     status: str = Field(default="reprocessing_started", description="Status of the reprocessing task")
     unlocked_count: int = Field(..., description="Number of previously filtered/failed articles unlocked")
+    deleted_events: Optional[int] = Field(default=None, description="Number of stale threats deleted from database")
+    deleted_posts: Optional[int] = Field(default=None, description="Number of stale raw posts deleted from database")
+
+
+class CleanupStaleResponse(BaseModel):
+    status: str = Field(default="stale_threats_cleaned", description="Status of cleanup task")
+    deleted_events: int = Field(default=0, description="Number of stale threats deleted from database")
+    deleted_posts: int = Field(default=0, description="Number of stale raw posts deleted from database")
+
+
+async def cleanup_stale_threats(db, retention_hours: Optional[int] = None) -> dict:
+    """
+    Purges stale and expired threats from MongoDB:
+    1. Removes all events and raw posts dated on or before October 22, 2026.
+    2. Removes any events and raw posts older than `retention_hours` (default settings.THREAT_RETENTION_HOURS, e.g. 48h).
+    3. Removes orphaned events whose source raw posts no longer exist in the raw_posts collection.
+    4. Broadcasts deletion WebSocket messages for any removed events so the UI immediately updates.
+    """
+    hours = retention_hours if retention_hours is not None else settings.THREAT_RETENTION_HOURS
+    now = utc_now()
+    retention_cutoff = now - timedelta(hours=hours)
+    oct_cutoff = datetime(2026, 10, 22, 23, 59, 59, tzinfo=timezone.utc)
+
+    deleted_events_count = 0
+    deleted_posts_count = 0
+
+    try:
+        # 1. Identify stale events (older than cutoff or from October 22nd and earlier)
+        event_query = {
+            "$or": [
+                {"event_timestamp": {"$lte": oct_cutoff}},
+                {"event_timestamp": {"$lt": retention_cutoff}},
+                {"created_at": {"$lte": oct_cutoff}},
+            ]
+        }
+        cursor = db.events.find(event_query, {"_id": 1})
+        docs = await cursor.to_list(length=2000)
+        eids_to_delete = [doc["_id"] for doc in docs]
+
+        if eids_to_delete:
+            del_res = await db.events.delete_many({"_id": {"$in": eids_to_delete}})
+            deleted_events_count += getattr(del_res, "deleted_count", 0)
+            for eid in eids_to_delete:
+                try:
+                    await publish_event({"id": str(eid)}, action="deleted")
+                except Exception:
+                    pass
+
+        # 2. Identify and delete stale raw posts
+        post_query = {
+            "$or": [
+                {"original_timestamp": {"$lte": oct_cutoff}},
+                {"original_timestamp": {"$lt": retention_cutoff}},
+                {"collected_at": {"$lte": oct_cutoff}},
+            ]
+        }
+        del_post_res = await db.raw_posts.delete_many(post_query)
+        deleted_posts_count += getattr(del_post_res, "deleted_count", 0)
+
+        # 3. Clean up orphaned events (events whose raw_post_ids no longer exist in raw_posts)
+        try:
+            remaining_events = await db.events.find({}, {"_id": 1, "raw_post_ids": 1}).to_list(length=1000)
+            orphaned_ids = []
+            for ev in remaining_events:
+                pids = ev.get("raw_post_ids", [])
+                if not pids:
+                    orphaned_ids.append(ev["_id"])
+                else:
+                    valid_oids = [ObjectId(p) for p in pids if ObjectId.is_valid(p)]
+                    str_pids = [str(p) for p in pids]
+                    count = await db.raw_posts.count_documents({
+                        "$or": [{"_id": {"$in": valid_oids + str_pids}}, {"source_specific_id": {"$in": str_pids}}]
+                    })
+                    if count == 0:
+                        orphaned_ids.append(ev["_id"])
+
+            if orphaned_ids:
+                del_orphans = await db.events.delete_many({"_id": {"$in": orphaned_ids}})
+                deleted_events_count += getattr(del_orphans, "deleted_count", 0)
+                for oid in orphaned_ids:
+                    try:
+                        await publish_event({"id": str(oid)}, action="deleted")
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.debug("Orphaned events check skipped or failed: %s", exc)
+
+        logger.info(
+            "Cleaned up stale threats: %d events deleted, %d raw posts deleted (cutoff: %s)",
+            deleted_events_count,
+            deleted_posts_count,
+            retention_cutoff.isoformat(),
+        )
+    except Exception as exc:
+        logger.warning("cleanup_stale_threats encountered error: %s", exc)
+
+    return {
+        "deleted_events": deleted_events_count,
+        "deleted_posts": deleted_posts_count,
+    }
 
 
 async def unlock_ignored_posts(db, limit: int = 50) -> int:
@@ -57,6 +163,12 @@ async def unlock_ignored_posts(db, limit: int = 50) -> int:
 
 async def _run_ingest_and_process(db, limit: int = 100, batch_size: int = 5) -> None:
     """Run RSS ingestion followed immediately by intelligence NLP and clustering processing."""
+    # 1. Clean up stale/non-existent threats before fetching new feeds
+    try:
+        await cleanup_stale_threats(db)
+    except Exception as exc:
+        logger.debug("cleanup_stale_threats in _run_ingest_and_process skipped: %s", exc)
+
     try:
         from app.ingestion.service import IngestionService
         ingestion_service = IngestionService(db)
@@ -116,13 +228,20 @@ async def process_pending_posts(
 ):
     """
     Executes the end-to-end ingestion and processing pipeline asynchronously:
-    1. If pending count is 0, unlocks up to 50 ignored posts so sync always evaluates real data.
-    2. Ingests all active RSS feeds to pull latest raw posts.
-    3. Runs text cleaning, NER, EntityRuler, Geocoding, and Event Clustering on pending posts.
-    4. Broadcasts new/updated events via WebSockets.
-    5. Returns HTTP 202 Accepted immediately.
+    1. Deletes stale and non-existent threats from earlier dates.
+    2. If pending count is 0, unlocks up to 50 ignored posts so sync always evaluates real data.
+    3. Ingests all active RSS feeds to pull latest raw posts.
+    4. Runs text cleaning, NER, EntityRuler, Geocoding, and Event Clustering on pending posts.
+    5. Broadcasts new/updated events via WebSockets.
+    6. Returns HTTP 202 Accepted immediately.
     """
     db = get_database()
+    cleanup_stats = {}
+    try:
+        cleanup_stats = await cleanup_stale_threats(db)
+    except Exception as exc:
+        logger.debug("cleanup_stale_threats in process_pending skipped: %s", exc)
+
     try:
         pending_count = await db.raw_posts.count_documents({
             "$or": [
@@ -142,7 +261,11 @@ async def process_pending_posts(
             limit=limit,
             batch_size=batch_size,
         )
-        return ProcessPendingResponse(status="ingestion_and_processing_started")
+        return ProcessPendingResponse(
+            status="ingestion_and_processing_started",
+            deleted_events=cleanup_stats.get("deleted_events"),
+            deleted_posts=cleanup_stats.get("deleted_posts"),
+        )
     else:
         background_tasks.add_task(
             intelligence_service.process_pending_batch,
@@ -150,7 +273,11 @@ async def process_pending_posts(
             limit=limit,
             batch_size=batch_size,
         )
-        return ProcessPendingResponse(status="processing_started")
+        return ProcessPendingResponse(
+            status="processing_started",
+            deleted_events=cleanup_stats.get("deleted_events"),
+            deleted_posts=cleanup_stats.get("deleted_posts"),
+        )
 
 
 @router.post(
@@ -167,6 +294,12 @@ async def ingest_and_process_posts(
 ):
     """Explicit endpoint for running feed ingestion followed by batch processing."""
     db = get_database()
+    cleanup_stats = {}
+    try:
+        cleanup_stats = await cleanup_stale_threats(db)
+    except Exception as exc:
+        logger.debug("cleanup_stale_threats in ingest_and_process skipped: %s", exc)
+
     try:
         pending_count = await db.raw_posts.count_documents({
             "$or": [
@@ -185,7 +318,11 @@ async def ingest_and_process_posts(
         limit=limit,
         batch_size=batch_size,
     )
-    return ProcessPendingResponse(status="ingestion_and_processing_started")
+    return ProcessPendingResponse(
+        status="ingestion_and_processing_started",
+        deleted_events=cleanup_stats.get("deleted_events"),
+        deleted_posts=cleanup_stats.get("deleted_posts"),
+    )
 
 
 @router.post(
@@ -200,10 +337,17 @@ async def reprocess_all_posts(
     batch_size: int = 5,
 ):
     """
-    Resets all previously ignored and failed articles back to 'pending' state
+    Purges stale threats (from October 21st and earlier or older than retention cutoff),
+    resets all remaining ignored and failed articles back to 'pending' state,
     and triggers batch intelligence processing through the latest NLP and geocoding rules.
     """
     db = get_database()
+    cleanup_stats = {}
+    try:
+        cleanup_stats = await cleanup_stale_threats(db)
+    except Exception as exc:
+        logger.debug("cleanup_stale_threats in reprocess_all_posts skipped: %s", exc)
+
     filter_query = {
         "$or": [
             {"status": {"$in": ["ignored", "failed"]}},
@@ -235,6 +379,25 @@ async def reprocess_all_posts(
     return ReprocessAllResponse(
         status="reprocessing_started",
         unlocked_count=modified_count,
+        deleted_events=cleanup_stats.get("deleted_events", 0),
+        deleted_posts=cleanup_stats.get("deleted_posts", 0),
+    )
+
+
+@router.post(
+    "/cleanup-stale",
+    response_model=CleanupStaleResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete Stale Threats and Expired Articles",
+)
+async def cleanup_stale_endpoint(retention_hours: Optional[int] = None):
+    """Explicitly deletes threats older than retention cutoff (e.g. 48 hours) or from October 22 and earlier."""
+    db = get_database()
+    result = await cleanup_stale_threats(db, retention_hours=retention_hours)
+    return CleanupStaleResponse(
+        status="stale_threats_cleaned",
+        deleted_events=result.get("deleted_events", 0),
+        deleted_posts=result.get("deleted_posts", 0),
     )
 
 

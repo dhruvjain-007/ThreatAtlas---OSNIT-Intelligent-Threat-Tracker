@@ -100,6 +100,13 @@ export const App: React.FC = () => {
     const unsubscribe = wsService.subscribe((incomingEvent: Event, action: string) => {
       console.log(`[App] Real-Time WebSocket Event (${action}):`, incomingEvent);
 
+      if (action === 'deleted') {
+        setEvents((prev) => prev.filter((e) => e.id !== incomingEvent.id));
+        setPlaybackEvents((prev) => prev.filter((e) => e.id !== incomingEvent.id));
+        loadMetrics();
+        return;
+      }
+
       setEvents((prevEvents) => {
         const index = prevEvents.findIndex((e) => e.id === incomingEvent.id);
         if (index >= 0) {

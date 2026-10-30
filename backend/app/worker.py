@@ -22,7 +22,14 @@ async def scheduled_ingestion_and_processing_job():
     try:
         db = get_database()
 
-        # 1. Ingest all configured feeds
+        # 1. Clean up stale/non-existent threats
+        try:
+            from app.api.v1.endpoints.intelligence import cleanup_stale_threats
+            await cleanup_stale_threats(db)
+        except Exception as exc:
+            logger.debug("cleanup_stale_threats skipped in worker: %s", exc)
+
+        # 2. Ingest all configured feeds
         ingestion_service = IngestionService(db)
         ingest_stats = await ingestion_service.ingest_all_feeds()
         logger.info(
