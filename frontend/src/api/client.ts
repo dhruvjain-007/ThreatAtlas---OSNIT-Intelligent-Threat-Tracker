@@ -12,10 +12,20 @@ import type {
   WebhookAlertUpdate,
 } from '../types';
 
+// In local development (Vite dev server), route requests through relative '/api/v1'
+// so Vite's proxy forwards them to the configured backend target with changeOrigin: true,
+// preventing browser CORS rejection from localhost:3000.
+// In production (Vercel deployment), use the configured VITE_API_URL or fall back
+// to the production Render backend, which permits https://*.vercel.app origins.
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
-const API_BASE_URL = rawApiUrl
-  ? (rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`)
-  : '/api/v1';
+const isDev = import.meta.env.DEV;
+const isDirectApi = import.meta.env.VITE_DIRECT_API === 'true';
+
+const API_BASE_URL = (isDev && !isDirectApi)
+  ? '/api/v1'
+  : (rawApiUrl
+      ? (rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`)
+      : 'https://threatatlas-backend.onrender.com/api/v1');
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -167,7 +177,7 @@ export const checkHealth = async (): Promise<boolean> => {
     }
 
     return false;
-  } catch (err) {
+  } catch {
     return false;
   }
 };

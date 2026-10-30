@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, RefreshCw, AlertTriangle, Layers, Bell, Zap, RotateCcw } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Layers, Bell, Zap, RotateCcw, Home } from 'lucide-react';
 import { processPendingPosts, reprocessAll, dispatchTestEvent } from '../api/client';
 import type { ProcessPendingResponse, EventGlobalMetrics, Event } from '../types';
 import { AlertsModal } from './AlertsModal';
@@ -9,6 +9,7 @@ interface HeaderProps {
   globalMetrics: EventGlobalMetrics;
   onRefresh: () => void;
   onSelectEvent?: (event: Event) => void;
+  onNavigateLanding?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   globalMetrics,
   onRefresh,
   onSelectEvent,
+  onNavigateLanding,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDispatchingTest, setIsDispatchingTest] = useState(false);
@@ -85,8 +87,15 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="h-16 bg-slate-950/70 border-b border-slate-800/60 px-6 flex items-center justify-between backdrop-blur-md z-30 relative select-none shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
       {/* Brand & System Title */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-blue-600/10 border border-blue-500/20 rounded-lg flex items-center justify-center text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]">
+      <div
+        onClick={onNavigateLanding}
+        className={`flex items-center gap-3 ${onNavigateLanding ? 'cursor-pointer hover:opacity-90 group' : ''}`}
+        role={onNavigateLanding ? 'button' : undefined}
+        tabIndex={onNavigateLanding ? 0 : undefined}
+        onKeyDown={onNavigateLanding ? (e) => { if (e.key === 'Enter' || e.key === ' ') onNavigateLanding(); } : undefined}
+        title={onNavigateLanding ? 'Return to ThreatAtlas Overview' : undefined}
+      >
+        <div className="p-2 bg-blue-600/10 border border-blue-500/20 group-hover:border-cyan-400/40 rounded-lg flex items-center justify-center text-blue-400 group-hover:text-cyan-300 shadow-[0_0_10px_rgba(59,130,246,0.2)] transition-colors">
           <Shield className="w-6 h-6" />
         </div>
         <div>
@@ -132,6 +141,17 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Actions */}
       <div className="flex items-center gap-2.5">
+        {onNavigateLanding && (
+          <button
+            onClick={onNavigateLanding}
+            title="Return to ThreatAtlas Landing Page"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900/60 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 font-medium text-xs rounded-lg border border-slate-700/60 transition-all cursor-pointer backdrop-blur-sm focus:ring-2 focus:ring-cyan-400 outline-none"
+          >
+            <Home className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Landing Page</span>
+          </button>
+        )}
+
         <button
           onClick={() => setIsAlertsModalOpen(true)}
           className="flex items-center gap-2 px-3.5 py-2 bg-slate-900/50 hover:bg-slate-800/60 text-slate-300 font-medium text-xs rounded-lg border border-slate-700/60 transition-all cursor-pointer backdrop-blur-sm hover:shadow-[0_0_12px_rgba(148,163,184,0.1)] focus:ring-2 focus:ring-slate-600 outline-none"
