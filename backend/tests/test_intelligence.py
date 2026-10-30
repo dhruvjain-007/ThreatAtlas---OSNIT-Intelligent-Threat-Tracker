@@ -179,10 +179,10 @@ def test_credibility_new_defense_sources():
 def test_feed_registry_sources_exist():
     expected_feeds = [
         "Defense News",
-        "Reuters World",
+        "France 24 World",
         "The Guardian World",
         "Al Jazeera World",
-        "Defence Blog",
+        "Defense One",
         "UK MOD / Security Announcements"
     ]
     feed_names = [feed.name for feed in DEFAULT_RSS_FEEDS]
@@ -426,8 +426,9 @@ def test_high_frequency_conflict_rss_feeds():
         "Al Jazeera World": "https://www.aljazeera.com/xml/rss/all.xml",
         "BBC World News": "https://feeds.bbci.co.uk/news/world/rss.xml",
         "The Guardian World": "https://www.theguardian.com/world/rss",
-        "CrisisWatch International": "https://www.crisisgroup.org/rss-feed",
-        "Defence Blog": "https://defence-blog.com/feed/",
+        "CrisisWatch International": "https://www.crisisgroup.org/rss",
+        "Defense One": "https://www.defenseone.com/rss/all/",
+        "France 24 World": "https://www.france24.com/en/rss",
     }
     
     for name, expected_url in expected_feeds.items():

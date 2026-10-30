@@ -26,19 +26,19 @@ DEFAULT_RSS_FEEDS: List[RSSFeedConfig] = [
     ),
     RSSFeedConfig(
         name="CrisisWatch International",
-        url="https://www.crisisgroup.org/rss-feed",
+        url="https://www.crisisgroup.org/rss",
     ),
     RSSFeedConfig(
-        name="Defence Blog",
-        url="https://defence-blog.com/feed/",
+        name="Defense One",
+        url="https://www.defenseone.com/rss/all/",
     ),
     RSSFeedConfig(
         name="Defense News",
         url="https://www.defensenews.com/arc/outboundfeeds/rss/",
     ),
     RSSFeedConfig(
-        name="Reuters World",
-        url="https://feeds.bbci.co.uk/news/world/rss.xml",
+        name="France 24 World",
+        url="https://www.france24.com/en/rss",
     ),
     RSSFeedConfig(
         name="UK MOD / Security Announcements",
