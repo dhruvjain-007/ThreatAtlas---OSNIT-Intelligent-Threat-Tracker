@@ -25,6 +25,36 @@ class ProcessPendingResponse(BaseModel):
     errors: Optional[int] = Field(default=None, description="Number of posts that failed during processing")
 
 
+class ReprocessAllResponse(BaseModel):
+    status: str = Field(default="reprocessing_started", description="Status of the reprocessing task")
+    unlocked_count: int = Field(..., description="Number of previously filtered/failed articles unlocked")
+
+
+async def unlock_ignored_posts(db, limit: int = 50) -> int:
+    """Unlock up to `limit` ignored posts back to 'pending' state."""
+    try:
+        filter_query = {
+            "$or": [
+                {"processing_status": "ignored"},
+                {"status": "ignored"},
+            ]
+        }
+        cursor = db.raw_posts.find(filter_query, {"_id": 1}).limit(limit)
+        docs = await cursor.to_list(length=limit)
+        if not docs:
+            return 0
+        ids_to_unlock = [d["_id"] for d in docs]
+        res = await db.raw_posts.update_many(
+            {"_id": {"$in": ids_to_unlock}},
+            {"$set": {"processing_status": "pending", "status": "pending", "updated_at": utc_now()}},
+        )
+        logger.info("Automatically unlocked %d ignored posts for re-evaluation", res.modified_count)
+        return res.modified_count
+    except Exception as exc:
+        logger.debug("unlock_ignored_posts skipped or failed: %s", exc)
+        return 0
+
+
 async def _run_ingest_and_process(db, limit: int = 100, batch_size: int = 5) -> None:
     """Run RSS ingestion followed immediately by intelligence NLP and clustering processing."""
     try:
@@ -41,6 +71,19 @@ async def _run_ingest_and_process(db, limit: int = 100, batch_size: int = 5) -> 
         logger.error("Background ingestion failed: %s", exc, exc_info=True)
 
     try:
+        # If no pending posts exist, automatically unlock up to 50 ignored posts
+        try:
+            pending_count = await db.raw_posts.count_documents({
+                "$or": [
+                    {"processing_status": "pending"},
+                    {"status": "pending"},
+                ]
+            })
+            if pending_count == 0:
+                await unlock_ignored_posts(db, limit=50)
+        except Exception as exc:
+            logger.debug("Could not check pending count during ingestion: %s", exc)
+
         process_stats = await intelligence_service.process_pending_batch(
             db=db,
             limit=limit,
@@ -73,12 +116,25 @@ async def process_pending_posts(
 ):
     """
     Executes the end-to-end ingestion and processing pipeline asynchronously:
-    1. Ingests all active RSS feeds to pull latest raw posts.
-    2. Runs text cleaning, NER, EntityRuler, Geocoding, and Event Clustering on pending posts.
-    3. Broadcasts new/updated events via WebSockets.
-    4. Returns HTTP 202 Accepted immediately.
+    1. If pending count is 0, unlocks up to 50 ignored posts so sync always evaluates real data.
+    2. Ingests all active RSS feeds to pull latest raw posts.
+    3. Runs text cleaning, NER, EntityRuler, Geocoding, and Event Clustering on pending posts.
+    4. Broadcasts new/updated events via WebSockets.
+    5. Returns HTTP 202 Accepted immediately.
     """
     db = get_database()
+    try:
+        pending_count = await db.raw_posts.count_documents({
+            "$or": [
+                {"processing_status": "pending"},
+                {"status": "pending"},
+            ]
+        })
+        if pending_count == 0:
+            await unlock_ignored_posts(db, limit=50)
+    except Exception as exc:
+        logger.debug("Could not check pending count in process_pending: %s", exc)
+
     if ingest:
         background_tasks.add_task(
             _run_ingest_and_process,
@@ -111,6 +167,18 @@ async def ingest_and_process_posts(
 ):
     """Explicit endpoint for running feed ingestion followed by batch processing."""
     db = get_database()
+    try:
+        pending_count = await db.raw_posts.count_documents({
+            "$or": [
+                {"processing_status": "pending"},
+                {"status": "pending"},
+            ]
+        })
+        if pending_count == 0:
+            await unlock_ignored_posts(db, limit=50)
+    except Exception as exc:
+        logger.debug("Could not check pending count in ingest_and_process: %s", exc)
+
     background_tasks.add_task(
         _run_ingest_and_process,
         db=db,
@@ -118,6 +186,56 @@ async def ingest_and_process_posts(
         batch_size=batch_size,
     )
     return ProcessPendingResponse(status="ingestion_and_processing_started")
+
+
+@router.post(
+    "/reprocess-all",
+    response_model=ReprocessAllResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Unlock All Ignored and Failed Posts and Re-evaluate",
+)
+async def reprocess_all_posts(
+    background_tasks: BackgroundTasks,
+    limit: int = 500,
+    batch_size: int = 5,
+):
+    """
+    Resets all previously ignored and failed articles back to 'pending' state
+    and triggers batch intelligence processing through the latest NLP and geocoding rules.
+    """
+    db = get_database()
+    filter_query = {
+        "$or": [
+            {"status": {"$in": ["ignored", "failed"]}},
+            {"processing_status": {"$in": ["ignored", "failed"]}},
+        ]
+    }
+    update_doc = {
+        "$set": {
+            "status": "pending",
+            "processing_status": "pending",
+            "updated_at": utc_now(),
+        }
+    }
+    modified_count = 0
+    try:
+        result = await db.raw_posts.update_many(filter_query, update_doc)
+        modified_count = getattr(result, "modified_count", 0)
+        logger.info("Reprocess-all unlocked %d raw posts for re-evaluation", modified_count)
+    except Exception as exc:
+        logger.warning("Error running update_many in reprocess_all_posts: %s", exc)
+
+    background_tasks.add_task(
+        intelligence_service.process_pending_batch,
+        db=db,
+        limit=limit,
+        batch_size=batch_size,
+    )
+
+    return ReprocessAllResponse(
+        status="reprocessing_started",
+        unlocked_count=modified_count,
+    )
 
 
 @router.post(

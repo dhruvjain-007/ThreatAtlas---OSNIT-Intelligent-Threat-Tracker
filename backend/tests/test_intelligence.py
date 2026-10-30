@@ -180,8 +180,9 @@ def test_feed_registry_sources_exist():
     expected_feeds = [
         "Defense News",
         "Reuters World",
-        "ReliefWeb Crisis Reports",
-        "US Naval Institute News",
+        "The Guardian World",
+        "Al Jazeera World",
+        "Defence Blog",
         "UK MOD / Security Announcements"
     ]
     feed_names = [feed.name for feed in DEFAULT_RSS_FEEDS]
@@ -422,11 +423,11 @@ def test_high_frequency_conflict_rss_feeds():
     feed_dict = {f.name: f.url for f in DEFAULT_RSS_FEEDS}
     
     expected_feeds = {
-        "Al Jazeera Breaking News": "https://www.aljazeera.com/xml/rss/all.xml",
+        "Al Jazeera World": "https://www.aljazeera.com/xml/rss/all.xml",
         "BBC World News": "https://feeds.bbci.co.uk/news/world/rss.xml",
-        "UN News Global Perspective": "https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+        "The Guardian World": "https://www.theguardian.com/world/rss",
         "CrisisWatch International": "https://www.crisisgroup.org/rss-feed",
-        "Defense Blog": "https://defence-blog.com/feed/",
+        "Defence Blog": "https://defence-blog.com/feed/",
     }
     
     for name, expected_url in expected_feeds.items():

@@ -210,6 +210,24 @@ def test_ingest_and_process_endpoint(mocker):
     assert data["status"] == "ingestion_and_processing_started"
 
 
+def test_reprocess_all_endpoint(mocker):
+    """Test POST /api/v1/intelligence/reprocess-all unlocks ignored/failed posts and returns 200."""
+    mock_db = MagicMock()
+    mock_result = MagicMock()
+    mock_result.modified_count = 42
+    mock_db.raw_posts.update_many = AsyncMock(return_value=mock_result)
+
+    mocker.patch("app.api.v1.endpoints.intelligence.get_database", return_value=mock_db)
+    mocker.patch("app.intelligence.service.IntelligenceService.process_pending_batch", AsyncMock())
+
+    response = client.post("/api/v1/intelligence/reprocess-all")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "reprocessing_started"
+    assert data["unlocked_count"] == 42
+    mock_db.raw_posts.update_many.assert_called_once()
+
+
 def test_dispatch_test_threat_event(mocker):
     """Test POST /api/v1/intelligence/test-event dispatches high-threat test event."""
     fake_id = str(ObjectId())

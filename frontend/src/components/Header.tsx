@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Shield, RefreshCw, AlertTriangle, Layers, Bell, Zap } from 'lucide-react';
-import { processPendingPosts, dispatchTestEvent } from '../api/client';
+import { Shield, RefreshCw, AlertTriangle, Layers, Bell, Zap, RotateCcw } from 'lucide-react';
+import { processPendingPosts, reprocessAll, dispatchTestEvent } from '../api/client';
 import type { ProcessPendingResponse, EventGlobalMetrics, Event } from '../types';
 import { AlertsModal } from './AlertsModal';
 
@@ -27,11 +27,34 @@ export const Header: React.FC<HeaderProps> = ({
     setIsProcessing(true);
     setProcessResult(null);
     try {
+      // 1. Unlock all previously filtered/ignored articles back to pending
+      const reprocessRes = await reprocessAll();
+      // 2. Trigger feed ingestion & intelligence batch processing
       const res = await processPendingPosts();
-      setProcessResult(res);
+      setProcessResult({
+        ...res,
+        unlocked_count: reprocessRes.unlocked_count,
+      });
       onRefresh();
     } catch (err) {
-      console.error('Failed to process pending posts:', err);
+      console.error('Failed to process and sync OSINT posts:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleReprocessOnly = async () => {
+    setIsProcessing(true);
+    setProcessResult(null);
+    try {
+      const res = await reprocessAll();
+      setProcessResult({
+        status: 'reprocessing_started',
+        unlocked_count: res.unlocked_count,
+      });
+      onRefresh();
+    } catch (err) {
+      console.error('Failed to trigger re-evaluation:', err);
     } finally {
       setIsProcessing(false);
     }
@@ -124,9 +147,19 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <button
+          onClick={handleReprocessOnly}
+          disabled={isProcessing}
+          title="Unlock all previously ignored/failed articles in DB and re-evaluate with country geocoding and updated NLP"
+          className="flex items-center gap-2 px-3 py-2 bg-slate-900/60 hover:bg-slate-800/80 disabled:bg-slate-800/50 text-indigo-300 hover:text-indigo-200 font-medium text-xs rounded-lg border border-indigo-500/30 transition-all shadow-[0_0_10px_rgba(99,102,241,0.15)] hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] cursor-pointer backdrop-blur-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+        >
+          <RotateCcw className={`w-3.5 h-3.5 text-indigo-400 ${isProcessing ? 'animate-spin' : ''}`} />
+          <span>Re-evaluate All</span>
+        </button>
+
+        <button
           onClick={handleProcessPending}
           disabled={isProcessing}
-          title="Fetch latest RSS feeds and run end-to-end NLP & intelligence clustering"
+          title="Unlock ignored DB articles, fetch latest RSS feeds, and run end-to-end NLP & intelligence clustering"
           className="flex items-center gap-2 px-3.5 py-2 bg-blue-600/80 hover:bg-blue-500/90 disabled:bg-slate-800/50 disabled:text-slate-500/50 text-white font-medium text-xs rounded-lg border border-blue-400/30 transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] cursor-pointer backdrop-blur-md hover:-translate-y-0.5 focus:ring-2 focus:ring-blue-400 outline-none"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
@@ -142,9 +175,11 @@ export const Header: React.FC<HeaderProps> = ({
 
         {processResult && !testNotification && (
           <div className="hidden lg:block text-[10px] font-mono text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 px-3 py-1.5 rounded-md backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.1)] animate-feed-in">
-            {processResult.status === 'ingestion_and_processing_started' || processResult.status === 'processing_started'
-              ? 'Feed ingestion & intelligence pipeline running...'
-              : `+${processResult.processed_count ?? 0} Processed (${processResult.events_created ?? 0} Created)`}
+            {processResult.unlocked_count !== undefined
+              ? `Unlocked ${processResult.unlocked_count} articles — intelligence pipeline running...`
+              : processResult.status === 'ingestion_and_processing_started' || processResult.status === 'processing_started' || processResult.status === 'reprocessing_started'
+                ? 'Feed ingestion & intelligence pipeline running...'
+                : `+${processResult.processed_count ?? 0} Processed (${processResult.events_created ?? 0} Created)`}
           </div>
         )}
       </div>

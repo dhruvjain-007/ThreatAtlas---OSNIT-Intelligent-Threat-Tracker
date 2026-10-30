@@ -123,6 +123,11 @@ export const processPendingPosts = async (): Promise<ProcessPendingResponse> => 
   return response.data;
 };
 
+export const reprocessAll = async (): Promise<{ status: string; unlocked_count: number }> => {
+  const response = await apiClient.post<{ status: string; unlocked_count: number }>('/intelligence/reprocess-all');
+  return response.data;
+};
+
 export const ingestAndProcess = async (): Promise<ProcessPendingResponse> => {
   const response = await apiClient.post<ProcessPendingResponse>('/intelligence/ingest-and-process');
   return response.data;

@@ -13,7 +13,7 @@ class RSSFeedConfig(BaseModel):
 # Default legitimate public RSS sources for defensive threat monitoring
 DEFAULT_RSS_FEEDS: List[RSSFeedConfig] = [
     RSSFeedConfig(
-        name="Al Jazeera Breaking News",
+        name="Al Jazeera World",
         url="https://www.aljazeera.com/xml/rss/all.xml",
     ),
     RSSFeedConfig(
@@ -21,15 +21,15 @@ DEFAULT_RSS_FEEDS: List[RSSFeedConfig] = [
         url="https://feeds.bbci.co.uk/news/world/rss.xml",
     ),
     RSSFeedConfig(
-        name="UN News Global Perspective",
-        url="https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+        name="The Guardian World",
+        url="https://www.theguardian.com/world/rss",
     ),
     RSSFeedConfig(
         name="CrisisWatch International",
         url="https://www.crisisgroup.org/rss-feed",
     ),
     RSSFeedConfig(
-        name="Defense Blog",
+        name="Defence Blog",
         url="https://defence-blog.com/feed/",
     ),
     RSSFeedConfig(
@@ -39,14 +39,6 @@ DEFAULT_RSS_FEEDS: List[RSSFeedConfig] = [
     RSSFeedConfig(
         name="Reuters World",
         url="https://feeds.bbci.co.uk/news/world/rss.xml",
-    ),
-    RSSFeedConfig(
-        name="ReliefWeb Crisis Reports",
-        url="https://reliefweb.int/updates/rss.xml",
-    ),
-    RSSFeedConfig(
-        name="US Naval Institute News",
-        url="https://news.usni.org/feed",
     ),
     RSSFeedConfig(
         name="UK MOD / Security Announcements",
