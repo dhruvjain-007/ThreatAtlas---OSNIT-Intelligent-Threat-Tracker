@@ -11,6 +11,7 @@ from app.db.repositories.raw_post import RawPostRepository
 from app.intelligence.threat_scorer import calculate_threat_score, is_post_relevant
 from app.intelligence.credibility_scorer import calculate_credibility_score
 from app.intelligence.clustering import find_best_matching_event
+from app.intelligence.geocoding import fallback_country_geocode
 from app.core.redis import publish_event
 from app.services.webhook_service import dispatch_webhooks_for_event
 
@@ -47,8 +48,9 @@ class IntelligenceService:
 
         bbox = None
         if nlp_result.locations:
-            primary_loc = nlp_result.locations[0]
-            if primary_loc.lat != 0.0 or primary_loc.lng != 0.0:
+            valid_locs = [loc for loc in nlp_result.locations if loc.lat != 0.0 or loc.lng != 0.0]
+            if valid_locs:
+                primary_loc = valid_locs[0]
                 lat_delta = MAX_SPATIAL_DISTANCE_KM / 111.0
                 cos_lat = math.cos(math.radians(primary_loc.lat))
                 if cos_lat < 0.1:
@@ -145,12 +147,22 @@ class IntelligenceService:
             geo_location = None
             country_code = None
             if nlp_result.locations:
-                primary_loc = nlp_result.locations[0]
+                valid_locs = [loc for loc in nlp_result.locations if loc.lat != 0.0 or loc.lng != 0.0]
+                primary_loc = valid_locs[0] if valid_locs else nlp_result.locations[0]
                 location_name = primary_loc.name
                 country_code = primary_loc.country_code
                 if primary_loc.lat != 0.0 or primary_loc.lng != 0.0:
                     # GeoJSON is [lng, lat]
                     geo_location = GeoJSONPoint(coordinates=[primary_loc.lng, primary_loc.lat])
+
+            # If specific city NER extraction failed to find coordinates, fall back to country mentions
+            if geo_location is None:
+                country_fallback = fallback_country_geocode([], raw_post.text)
+                if country_fallback:
+                    c_name, c_lat, c_lng, c_cc = country_fallback
+                    location_name = location_name or c_name
+                    country_code = country_code or c_cc
+                    geo_location = GeoJSONPoint(coordinates=[c_lng, c_lat])
 
             # Entities dict
             entities_dict = {
@@ -223,6 +235,7 @@ class IntelligenceService:
         """
         Executes the end-to-end processing pipeline on pending RawPosts in small chunks (default batch_size=5).
         Runs explicit garbage collection after each chunk to maintain a low RAM footprint on 512MB tiers.
+        Logs throughput: posts processed, passed relevance, geocoded into events, and errors.
         Returns a dict of statistics.
         """
         import gc
@@ -234,6 +247,8 @@ class IntelligenceService:
 
         stats = {
             "processed_count": 0,
+            "passed_relevance": 0,
+            "geocoded_count": 0,
             "events_created": 0,
             "events_merged": 0,
             "events_ignored": 0,
@@ -271,6 +286,9 @@ class IntelligenceService:
                         total_processed += 1
                         continue
 
+                    # Post passed relevance check
+                    stats["passed_relevance"] += 1
+
                     result = await self.process_post(
                         raw_post=post,
                         event_repo=event_repo,
@@ -280,6 +298,24 @@ class IntelligenceService:
 
                     stats["processed_count"] += 1
                     total_processed += 1
+
+                    # Check if the resulting event has coordinates
+                    evt = result.get("event")
+                    is_geocoded = False
+                    if evt:
+                        loc = getattr(evt, "location", None) or (evt.get("location") if isinstance(evt, dict) else None)
+                        if loc and hasattr(loc, "coordinates") and loc.coordinates:
+                            coords = loc.coordinates
+                            if len(coords) >= 2 and (coords[0] != 0.0 or coords[1] != 0.0):
+                                is_geocoded = True
+                        elif isinstance(loc, dict) and loc.get("coordinates"):
+                            coords = loc["coordinates"]
+                            if len(coords) >= 2 and (coords[0] != 0.0 or coords[1] != 0.0):
+                                is_geocoded = True
+
+                    if is_geocoded:
+                        stats["geocoded_count"] += 1
+
                     if result.get("action") == "created":
                         stats["events_created"] += 1
                     elif result.get("action") == "merged":
@@ -297,6 +333,17 @@ class IntelligenceService:
 
             # Explicit garbage collection after processing each batch chunk
             gc.collect()
+
+        logger.info(
+            "Batch intelligence run finished: %d posts processed, %d passed relevance, %d geocoded into events (%d created, %d merged), %d ignored as irrelevant, %d errors",
+            stats["processed_count"],
+            stats["passed_relevance"],
+            stats["geocoded_count"],
+            stats["events_created"],
+            stats["events_merged"],
+            stats["events_ignored"],
+            stats["errors"],
+        )
 
         return stats
 

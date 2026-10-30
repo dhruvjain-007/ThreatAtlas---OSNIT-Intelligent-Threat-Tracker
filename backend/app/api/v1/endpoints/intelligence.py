@@ -17,6 +17,8 @@ router = APIRouter()
 class ProcessPendingResponse(BaseModel):
     status: str = Field(default="ingestion_and_processing_started", description="Status of the background task")
     processed_count: Optional[int] = Field(default=None, description="Number of raw posts processed")
+    passed_relevance: Optional[int] = Field(default=None, description="Number of posts that passed threat-relevance")
+    geocoded_count: Optional[int] = Field(default=None, description="Number of events geocoded into map coordinates")
     events_created: Optional[int] = Field(default=None, description="Number of new events created")
     events_merged: Optional[int] = Field(default=None, description="Number of posts merged into existing events")
     events_ignored: Optional[int] = Field(default=None, description="Number of posts ignored because they were not threat-relevant")
@@ -45,8 +47,10 @@ async def _run_ingest_and_process(db, limit: int = 100, batch_size: int = 5) -> 
             batch_size=batch_size,
         )
         logger.info(
-            "Background intelligence processing finished: processed=%d, created=%d, merged=%d",
+            "Background intelligence processing finished: processed=%d, passed_relevance=%d, geocoded=%d, created=%d, merged=%d",
             process_stats.get("processed_count", 0),
+            process_stats.get("passed_relevance", 0),
+            process_stats.get("geocoded_count", 0),
             process_stats.get("events_created", 0),
             process_stats.get("events_merged", 0),
         )
@@ -174,5 +178,3 @@ async def dispatch_test_threat_event():
     await publish_event(created_event.model_dump(), action="created")
 
     return created_event
-
-

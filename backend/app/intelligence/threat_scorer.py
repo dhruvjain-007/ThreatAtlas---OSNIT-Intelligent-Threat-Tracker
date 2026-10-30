@@ -9,6 +9,7 @@ from app.intelligence.config import (
     DEFAULT_LOCATION_SENSITIVITY,
     get_threat_level,
 )
+from app.intelligence.preprocessing import contains_conflict_keywords, extract_conflict_keywords
 
 def calculate_threat_score(
     nlp_result: NLPResult,
@@ -66,12 +67,28 @@ def _get_action_and_equipment_scores(nlp_result: NLPResult) -> Tuple[float, floa
     # 1. Action / Event Score
     action_score = 0.0
     found_actions = set(nlp_result.event_types)
+    found_eq = set(nlp_result.equipment)
     
     # Also check text for action keywords in case NER missed explicit label
-    lower_text = nlp_result.cleaned_text.lower()
+    lower_text = (nlp_result.cleaned_text or nlp_result.original_text or "").lower()
     for kw, weight in ACTION_WEIGHTS.items():
         if kw in lower_text:
             found_actions.add(kw)
+
+    # Check equipment keywords in text
+    for kw, weight in EQUIPMENT_WEIGHTS.items():
+        if kw.lower() in lower_text:
+            found_eq.add(kw)
+
+    # Check extracted conflict keywords for broader coverage
+    for ck in extract_conflict_keywords(lower_text):
+        if ck in ACTION_WEIGHTS:
+            found_actions.add(ck)
+        elif ck in EQUIPMENT_WEIGHTS:
+            found_eq.add(ck)
+        else:
+            # General security term
+            found_actions.add(ck)
             
     if found_actions:
         action_score = max(ACTION_WEIGHTS.get(act.lower(), DEFAULT_ACTION_WEIGHT) for act in found_actions)
@@ -79,11 +96,6 @@ def _get_action_and_equipment_scores(nlp_result: NLPResult) -> Tuple[float, floa
 
     # 2. Equipment Impact Score
     equipment_score = 0.0
-    found_eq = set(nlp_result.equipment)
-    for kw, weight in EQUIPMENT_WEIGHTS.items():
-        if kw.lower() in lower_text:
-            found_eq.add(kw)
-            
     if found_eq:
         equipment_score = sum(EQUIPMENT_WEIGHTS.get(eq, DEFAULT_EQUIPMENT_WEIGHT) for eq in found_eq)
     equipment_score = min(25.0, equipment_score)
@@ -94,7 +106,12 @@ def _get_action_and_equipment_scores(nlp_result: NLPResult) -> Tuple[float, floa
 def is_post_relevant(nlp_result: NLPResult) -> bool:
     """
     Determines if a post is threat-relevant.
-    A post is relevant if and only if there is a non-zero action or equipment score.
+    A post is relevant if there is a non-zero action or equipment score,
+    or if any conflict keyword patterns match the post text.
     """
     action_score, equipment_score = _get_action_and_equipment_scores(nlp_result)
-    return action_score > 0 or equipment_score > 0
+    if action_score > 0 or equipment_score > 0:
+        return True
+
+    text = nlp_result.cleaned_text or nlp_result.original_text
+    return contains_conflict_keywords(text)

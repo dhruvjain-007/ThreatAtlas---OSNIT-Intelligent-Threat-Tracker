@@ -411,3 +411,146 @@ def test_clustering_determinism(base_time):
     assert res1 is not None and res2 is not None
     assert res1[0].id == res2[0].id
     assert res1[1] == res2[1]
+
+
+# ==========================================
+# 4. HIGH-FREQUENCY FEEDS & RELAXED NLP/GEOCODING TESTS
+# ==========================================
+
+def test_high_frequency_conflict_rss_feeds():
+    """Verify high-frequency crisis feeds are configured with expected URLs."""
+    feed_dict = {f.name: f.url for f in DEFAULT_RSS_FEEDS}
+    
+    expected_feeds = {
+        "Al Jazeera Breaking News": "https://www.aljazeera.com/xml/rss/all.xml",
+        "BBC World News": "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "UN News Global Perspective": "https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+        "CrisisWatch International": "https://www.crisisgroup.org/rss-feed",
+        "Defense Blog": "https://defence-blog.com/feed/",
+    }
+    
+    for name, expected_url in expected_feeds.items():
+        assert name in feed_dict, f"Feed '{name}' missing from DEFAULT_RSS_FEEDS"
+        assert feed_dict[name] == expected_url, f"Feed '{name}' URL mismatch"
+
+
+def test_expanded_conflict_keywords_relevance():
+    """Verify all expanded conflict keywords pass relevance filtering."""
+    from app.intelligence.preprocessing import contains_conflict_keywords, is_conflict_relevant
+    
+    keywords = [
+        "shelling", "missile", "intercept", "drone", "patrol", "navy",
+        "clashes", "border", "casualty", "ceasefire", "strike", "troops"
+    ]
+    
+    for kw in keywords:
+        sample_text = f"Urgent report: heavy {kw} reported near defensive line."
+        assert contains_conflict_keywords(sample_text), f"Keyword '{kw}' not recognized by regex"
+        assert is_conflict_relevant(sample_text), f"Keyword '{kw}' failed is_conflict_relevant"
+        
+        dummy_nlp = NLPResult(
+            original_text=sample_text,
+            cleaned_text=sample_text,
+            entities=[],
+            locations=[],
+            organizations=[],
+            equipment=[],
+            event_types=[],
+        )
+        assert is_post_relevant(dummy_nlp), f"Post with keyword '{kw}' failed is_post_relevant"
+
+
+def test_country_level_geocoding_fallback():
+    """Verify fallback to country centroid coordinates when city NER fails (e.g., Lebanon, Taiwan)."""
+    from app.intelligence.geocoding import get_country_centroid, fallback_country_geocode, find_country_in_text
+
+    # 1. Direct centroid lookups
+    lebanon = get_country_centroid("Lebanon")
+    assert lebanon is not None
+    assert lebanon[0] == 33.8547 and lebanon[1] == 35.8623 and lebanon[2] == "lb"
+
+    taiwan = get_country_centroid("Taiwan")
+    assert taiwan is not None
+    assert taiwan[0] == 23.6978 and taiwan[1] == 120.9605 and taiwan[2] == "tw"
+
+    # 2. Text fallback detection without specific city
+    text_leb = "Artillery shelling observed along southern Lebanon border."
+    match_leb = find_country_in_text(text_leb)
+    assert match_leb is not None
+    assert match_leb[0].lower() == "lebanon"
+    assert match_leb[1] == 33.8547
+
+    text_twn = "Naval patrol intercepting unauthorized drone near Taiwan."
+    match_twn = fallback_country_geocode([], text_twn)
+    assert match_twn is not None
+    assert match_twn[0].lower() == "taiwan"
+    assert match_twn[1] == 23.6978
+
+
+@pytest.mark.asyncio
+async def test_process_pending_batch_logging_and_stats(mocker):
+    """Verify batch processing tracks passed_relevance and geocoded_count throughput metrics."""
+    from app.intelligence.service import intelligence_service
+    from app.schemas.raw_post import RawPostResponse
+
+    mock_db = mocker.MagicMock()
+    now = datetime(2026, 8, 12, 12, 0, 0, tzinfo=timezone.utc)
+
+    post1 = RawPostResponse(
+        id="post-1",
+        source="Al Jazeera Breaking News",
+        source_specific_id="aj-1",
+        text="Heavy missile strike and shelling in Lebanon near border.",
+        url="https://example.com/1",
+        raw_payload={},
+        processing_status="pending",
+        original_timestamp=now,
+        collected_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    post_irrelevant = RawPostResponse(
+        id="post-2",
+        source="BBC World News",
+        source_specific_id="bbc-1",
+        text="The local bakery won a prize for the best sourdough bread.",
+        url="https://example.com/2",
+        raw_payload={},
+        processing_status="pending",
+        original_timestamp=now,
+        collected_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+
+    # Mock RawPostRepository
+    mocker.patch(
+        "app.db.repositories.raw_post.RawPostRepository.list_pending",
+        side_effect=[[post1, post_irrelevant], []]
+    )
+    mocker.patch(
+        "app.db.repositories.raw_post.RawPostRepository.update_status",
+        mocker.AsyncMock()
+    )
+
+    # Mock EventRepository
+    mock_event = mocker.MagicMock()
+    mock_event.id = "evt-1"
+    mock_event.location = GeoJSONPoint(coordinates=[35.8623, 33.8547])
+    mocker.patch(
+        "app.db.repositories.event.EventRepository.list_events",
+        mocker.AsyncMock(return_value=[])
+    )
+    mocker.patch(
+        "app.db.repositories.event.EventRepository.create",
+        mocker.AsyncMock(return_value=mock_event)
+    )
+
+    stats = await intelligence_service.process_pending_batch(db=mock_db, limit=10, batch_size=5)
+
+    assert stats["processed_count"] == 2
+    assert stats["passed_relevance"] == 1
+    assert stats["events_ignored"] == 1
+    assert stats["geocoded_count"] == 1
+    assert stats["events_created"] == 1
+    assert stats["errors"] == 0

@@ -13,16 +13,24 @@ class RSSFeedConfig(BaseModel):
 # Default legitimate public RSS sources for defensive threat monitoring
 DEFAULT_RSS_FEEDS: List[RSSFeedConfig] = [
     RSSFeedConfig(
-        name="BBC World News",
-        url="http://feeds.bbci.co.uk/news/world/rss.xml",
-    ),
-    RSSFeedConfig(
-        name="Al Jazeera English",
+        name="Al Jazeera Breaking News",
         url="https://www.aljazeera.com/xml/rss/all.xml",
     ),
     RSSFeedConfig(
-        name="UN News",
+        name="BBC World News",
+        url="https://feeds.bbci.co.uk/news/world/rss.xml",
+    ),
+    RSSFeedConfig(
+        name="UN News Global Perspective",
         url="https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+    ),
+    RSSFeedConfig(
+        name="CrisisWatch International",
+        url="https://www.crisisgroup.org/rss-feed",
+    ),
+    RSSFeedConfig(
+        name="Defense Blog",
+        url="https://defence-blog.com/feed/",
     ),
     RSSFeedConfig(
         name="Defense News",

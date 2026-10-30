@@ -2,7 +2,7 @@ import spacy
 from typing import List
 from app.nlp.schemas import NLPResult, Entity, Location
 from app.nlp.preprocessing import clean_text
-from app.nlp.geocoder import geocode
+from app.nlp.geocoder import geocode, fallback_country_geocode
 
 class NLPService:
     def __init__(self):
@@ -16,15 +16,38 @@ class NLPService:
             # Setup EntityRuler
             ruler = self.nlp.add_pipe("entity_ruler", before="ner")
             patterns = [
+                # Military / Security Equipment
                 {"label": "EQUIPMENT", "pattern": "T-72"},
                 {"label": "EQUIPMENT", "pattern": "F-16"},
                 {"label": "EQUIPMENT", "pattern": "drone"},
+                {"label": "EQUIPMENT", "pattern": "drones"},
                 {"label": "EQUIPMENT", "pattern": "UAV"},
                 {"label": "EQUIPMENT", "pattern": "tank"},
+                {"label": "EQUIPMENT", "pattern": "tanks"},
+                {"label": "EQUIPMENT", "pattern": "missile"},
+                {"label": "EQUIPMENT", "pattern": "missiles"},
+                {"label": "EQUIPMENT", "pattern": "artillery"},
+                {"label": "EQUIPMENT", "pattern": "navy"},
+                {"label": "EQUIPMENT", "pattern": "warship"},
+                {"label": "EQUIPMENT", "pattern": "troops"},
+                # Conflict Event Types & Actions
                 {"label": "EVENT_TYPE", "pattern": "airstrike"},
                 {"label": "EVENT_TYPE", "pattern": "explosion"},
                 {"label": "EVENT_TYPE", "pattern": "protest"},
-                {"label": "EVENT_TYPE", "pattern": "offensive"}
+                {"label": "EVENT_TYPE", "pattern": "offensive"},
+                {"label": "EVENT_TYPE", "pattern": "shelling"},
+                {"label": "EVENT_TYPE", "pattern": "strike"},
+                {"label": "EVENT_TYPE", "pattern": "strikes"},
+                {"label": "EVENT_TYPE", "pattern": "intercept"},
+                {"label": "EVENT_TYPE", "pattern": "patrol"},
+                {"label": "EVENT_TYPE", "pattern": "clashes"},
+                {"label": "EVENT_TYPE", "pattern": "clash"},
+                {"label": "EVENT_TYPE", "pattern": "border"},
+                {"label": "EVENT_TYPE", "pattern": "casualty"},
+                {"label": "EVENT_TYPE", "pattern": "casualties"},
+                {"label": "EVENT_TYPE", "pattern": "ceasefire"},
+                {"label": "EVENT_TYPE", "pattern": "bombing"},
+                {"label": "EVENT_TYPE", "pattern": "riot"},
             ]
             ruler.add_patterns(patterns)
             print("spaCy model loaded with EntityRuler.")
@@ -80,6 +103,22 @@ class NLPService:
                 
             elif ent.label_ == "EVENT_TYPE":
                 event_types.append(ent.text)
+
+        # Fall back to country-level entity mentions if city NER extraction failed to find coordinates
+        has_valid_coords = any(loc.lat != 0.0 or loc.lng != 0.0 for loc in locations)
+        if not has_valid_coords:
+            country_fallback = fallback_country_geocode(doc.ents, cleaned)
+            if country_fallback:
+                c_name, c_lat, c_lng, c_cc = country_fallback
+                # Filter out any placeholder (0.0, 0.0) location with the same name if present
+                locations = [loc for loc in locations if loc.name.lower() != c_name.lower() or (loc.lat != 0.0 or loc.lng != 0.0)]
+                locations.insert(0, Location(
+                    name=c_name,
+                    lat=c_lat,
+                    lng=c_lng,
+                    confidence="country_fallback",
+                    country_code=c_cc
+                ))
                 
         # Deduplicate lists
         organizations = list(set(organizations))
