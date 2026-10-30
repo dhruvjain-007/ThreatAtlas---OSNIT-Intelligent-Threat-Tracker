@@ -17,6 +17,7 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
+  const [webglError, setWebglError] = React.useState<boolean>(false);
 
   const eventsRef = useRef(events);
   const onSelectEventRef = useRef(onSelectEvent);
@@ -30,78 +31,87 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
 
-    // Set Ion default token
-    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YTYyZTk0Yy0yY2UwLTQyOWEtOWU3Yi04YjA1YWM2MGQ3MjYiLCJpZCI6MTU3MzA2LCJpYXQiOjE2OTA0OTkxMzR9.mock';
+    let handler: Cesium.ScreenSpaceEventHandler | null = null;
 
-    const viewer = new Cesium.Viewer(containerRef.current, {
-      requestRenderMode: true,
-      maximumRenderTimeChange: Infinity,
-      baseLayer: false,
-      baseLayerPicker: false,
-      geocoder: false,
-      homeButton: true,
-      infoBox: false,
-      sceneModePicker: false,
-      selectionIndicator: false,
-      timeline: false,
-      animation: false,
-      navigationHelpButton: false,
-      scene3DOnly: true,
-      shadows: false,
-      terrainShadows: Cesium.ShadowMode.DISABLED,
-      skyAtmosphere: false,
-    });
+    try {
+      // Set Ion default token
+      Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YTYyZTk0Yy0yY2UwLTQyOWEtOWU3Yi04YjA1YWM2MGQ3MjYiLCJpZCI6MTU3MzA2LCJpYXQiOjE2OTA0OTkxMzR9.mock';
 
-    // 1. Crisp High-DPI Resolution & Antialiasing
-    viewer.resolutionScale = window.devicePixelRatio || 1.0;
-    if (viewer.scene.postProcessStages?.fxaa) {
-      viewer.scene.postProcessStages.fxaa.enabled = true;
-    }
+      const viewer = new Cesium.Viewer(containerRef.current, {
+        requestRenderMode: true,
+        maximumRenderTimeChange: Infinity,
+        baseLayer: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: true,
+        infoBox: false,
+        sceneModePicker: false,
+        selectionIndicator: false,
+        timeline: false,
+        animation: false,
+        navigationHelpButton: false,
+        scene3DOnly: true,
+        shadows: false,
+        terrainShadows: Cesium.ShadowMode.DISABLED,
+        skyAtmosphere: false,
+      });
 
-    // 2. High-Quality Globe Imagery
-    const imageryProvider = new Cesium.OpenStreetMapImageryProvider({
-      url: 'https://a.tile.openstreetmap.org/',
-    });
-    viewer.imageryLayers.add(new Cesium.ImageryLayer(imageryProvider));
+      // 1. Crisp High-DPI Resolution & Antialiasing
+      viewer.resolutionScale = window.devicePixelRatio || 1.0;
+      if (viewer.scene.postProcessStages?.fxaa) {
+        viewer.scene.postProcessStages.fxaa.enabled = true;
+      }
 
-    // Dark atmosphere and globe styling with maximumScreenSpaceError
-    const scene = viewer.scene;
-    scene.globe.enableLighting = false;
-    scene.globe.baseColor = Cesium.Color.fromCssColorString('#090d16');
-    scene.globe.maximumScreenSpaceError = 2;
-    scene.backgroundColor = Cesium.Color.fromCssColorString('#030712');
+      // 2. High-Quality Globe Imagery
+      const imageryProvider = new Cesium.OpenStreetMapImageryProvider({
+        url: 'https://a.tile.openstreetmap.org/',
+      });
+      viewer.imageryLayers.add(new Cesium.ImageryLayer(imageryProvider));
 
-    // Click handler for threat markers
-    const handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
-    handler.setInputAction((movement: any) => {
-      const pickedObject = scene.pick(movement.position);
-      if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.properties) {
-        const eventId = pickedObject.id.properties.eventId?.getValue();
-        if (eventId) {
-          const targetEvent = eventsRef.current.find((e) => e.id === eventId);
-          if (targetEvent) {
-            onSelectEventRef.current(targetEvent);
+      // Dark atmosphere and globe styling with maximumScreenSpaceError
+      const scene = viewer.scene;
+      scene.globe.enableLighting = false;
+      scene.globe.baseColor = Cesium.Color.fromCssColorString('#090d16');
+      scene.globe.maximumScreenSpaceError = 2;
+      scene.backgroundColor = Cesium.Color.fromCssColorString('#030712');
 
-            // Execute camera flyTo on marker click
-            if (targetEvent.location?.coordinates && targetEvent.location.coordinates.length >= 2) {
-              const lon = Number(targetEvent.location.coordinates[0]);
-              const lat = Number(targetEvent.location.coordinates[1]);
-              if (!isNaN(lon) && !isNaN(lat) && (lon !== 0 || lat !== 0)) {
-                viewer.camera.flyTo({
-                  destination: Cesium.Cartesian3.fromDegrees(lon, lat, 150000),
-                  duration: 1.8,
-                });
+      // Click handler for threat markers
+      handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+      handler.setInputAction((movement: any) => {
+        const pickedObject = scene.pick(movement.position);
+        if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.properties) {
+          const eventId = pickedObject.id.properties.eventId?.getValue();
+          if (eventId) {
+            const targetEvent = eventsRef.current.find((e) => e.id === eventId);
+            if (targetEvent) {
+              onSelectEventRef.current(targetEvent);
+
+              // Execute camera flyTo on marker click
+              if (targetEvent.location?.coordinates && targetEvent.location.coordinates.length >= 2) {
+                const lon = Number(targetEvent.location.coordinates[0]);
+                const lat = Number(targetEvent.location.coordinates[1]);
+                if (!isNaN(lon) && !isNaN(lat) && (lon !== 0 || lat !== 0)) {
+                  viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(lon, lat, 150000),
+                    duration: 1.8,
+                  });
+                }
               }
             }
           }
         }
-      }
-    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-    viewerRef.current = viewer;
+      viewerRef.current = viewer;
+    } catch (err) {
+      console.warn('[GlobeViewer] WebGL initialization failed or unsupported:', err);
+      setWebglError(true);
+    }
 
     return () => {
-      handler.destroy();
+      if (handler) {
+        handler.destroy();
+      }
       if (viewerRef.current && !viewerRef.current.isDestroyed()) {
         viewerRef.current.entities.removeAll();
         viewerRef.current.destroy();
@@ -268,6 +278,16 @@ export const GlobeViewerComponent: React.FC<GlobeViewerProps> = ({
   return (
     <div className="relative w-full h-full bg-slate-950">
       <div ref={containerRef} className="w-full h-full" />
+      {webglError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/90 p-6 text-center z-20">
+          <div className="max-w-md space-y-3 p-6 rounded-2xl bg-slate-900 border border-slate-800 font-mono text-xs text-slate-300 shadow-2xl">
+            <p className="font-bold text-cyan-400 text-sm">3D Globe Hardware Acceleration</p>
+            <p className="text-slate-400 text-[11px] leading-relaxed">
+              WebGL hardware acceleration is required to render the Cesium 3D globe. Ensure hardware acceleration is enabled in your browser settings.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
