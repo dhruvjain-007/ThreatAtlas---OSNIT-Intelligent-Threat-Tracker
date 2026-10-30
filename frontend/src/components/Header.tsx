@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Shield, RefreshCw, AlertTriangle, Layers, Bell, Zap, RotateCcw, Home } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, Layers, Zap, RotateCcw, Home } from 'lucide-react';
 import { processPendingPosts, reprocessAll, dispatchTestEvent } from '../api/client';
 import type { ProcessPendingResponse, EventGlobalMetrics, Event } from '../types';
-import { AlertsModal } from './AlertsModal';
 
 interface HeaderProps {
   isOnline: boolean;
@@ -23,7 +22,6 @@ export const Header: React.FC<HeaderProps> = ({
   const [isDispatchingTest, setIsDispatchingTest] = useState(false);
   const [processResult, setProcessResult] = useState<ProcessPendingResponse | null>(null);
   const [testNotification, setTestNotification] = useState<string | null>(null);
-  const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
 
   const handleProcessPending = async () => {
     setIsProcessing(true);
@@ -153,14 +151,6 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         <button
-          onClick={() => setIsAlertsModalOpen(true)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-slate-900/50 hover:bg-slate-800/60 text-slate-300 font-medium text-xs rounded-lg border border-slate-700/60 transition-all cursor-pointer backdrop-blur-sm hover:shadow-[0_0_12px_rgba(148,163,184,0.1)] focus:ring-2 focus:ring-slate-600 outline-none"
-        >
-          <Bell className="w-3.5 h-3.5" />
-          <span>Alerts</span>
-        </button>
-
-        <button
           onClick={handleTriggerTestEvent}
           disabled={isDispatchingTest}
           title="Dispatch a real-time high-threat incident to test instant WebSocket pin drops on the Cesium globe"
@@ -209,11 +199,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
       </div>
-
-      <AlertsModal
-        isOpen={isAlertsModalOpen}
-        onClose={() => setIsAlertsModalOpen(false)}
-      />
     </header>
   );
 };
